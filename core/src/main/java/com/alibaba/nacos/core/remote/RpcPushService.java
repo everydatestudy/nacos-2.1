@@ -52,6 +52,7 @@ public class RpcPushService {
         Connection connection = connectionManager.getConnection(connectionId);
         if (connection != null) {
             try {
+                // 异步的rpc推送
                 connection.asyncRequest(request, new AbstractRequestCallBack(requestCallBack.getTimeout()) {
                     
                     @Override

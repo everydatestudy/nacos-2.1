@@ -125,6 +125,7 @@ public class ServiceInfoHolder implements Closeable {
         if (failoverReactor.isFailoverSwitch()) {
             return failoverReactor.getService(key);
         }
+        //从缓存列表中获取信息
         return serviceInfoMap.get(key);
     }
     
@@ -156,6 +157,7 @@ public class ServiceInfoHolder implements Closeable {
             //empty or error push, just ignore
             return oldService;
         }
+        // 把查到的信息覆盖我们本地的缓存
         serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
         boolean changed = isChangedServiceInfo(oldService, serviceInfo);
         if (StringUtils.isBlank(serviceInfo.getJsonFromServer())) {
@@ -167,6 +169,7 @@ public class ServiceInfoHolder implements Closeable {
                     JacksonUtils.toJson(serviceInfo.getHosts()));
             NotifyCenter.publishEvent(new InstancesChangeEvent(serviceInfo.getName(), serviceInfo.getGroupName(),
                     serviceInfo.getClusters(), serviceInfo.getHosts()));
+            // 会将注册信息写到本地磁盘列表中
             DiskCache.write(serviceInfo, cacheDir);
         }
         return serviceInfo;

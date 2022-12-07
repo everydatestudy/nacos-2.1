@@ -57,8 +57,11 @@ public class ServiceManager {
      * @return if service is exist, return exist service, otherwise return new service
      */
     public Service getSingleton(Service service) {
+        // 这里如果有就不放，如果没有就将service放到里面
         singletonRepository.putIfAbsent(service, service);
+        // 获取对应的服务，这个服务可能是已经存在的服务，也可能是现在传进来的服务
         Service result = singletonRepository.get(service);
+        // 这里是一个注册表： key：namespace value:是一个set里面放的是我们对应的Service服务
         namespaceSingletonMaps.computeIfAbsent(result.getNamespace(), (namespace) -> new ConcurrentHashSet<>());
         namespaceSingletonMaps.get(result.getNamespace()).add(result);
         return result;

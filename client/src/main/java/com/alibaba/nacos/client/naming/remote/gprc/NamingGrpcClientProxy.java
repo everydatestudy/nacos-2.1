@@ -124,7 +124,7 @@ public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
      * @throws NacosException nacos exception
      */
     public void doRegisterService(String serviceName, String groupName, Instance instance) throws NacosException {
-
+        //构建request请求
         InstanceRequest request = new InstanceRequest(namespaceId, serviceName, groupName,
                 NamingRemoteConstants.REGISTER_INSTANCE, instance);
         //key: 发送请求
@@ -214,6 +214,7 @@ public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
             NAMING_LOGGER.debug("[GRPC-SUBSCRIBE] service:{}, group:{}, cluster:{} ", serviceName, groupName, clusters);
         }
         redoService.cacheSubscriberForRedo(serviceName, groupName, clusters);
+        //进行订阅
         return doSubscribe(serviceName, groupName, clusters);
     }
     
@@ -227,8 +228,10 @@ public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
      * @throws NacosException nacos exception
      */
     public ServiceInfo doSubscribe(String serviceName, String groupName, String clusters) throws NacosException {
+        // 构建request请求参数
         SubscribeServiceRequest request = new SubscribeServiceRequest(namespaceId, groupName, serviceName, clusters,
                 true);
+        // 发送grpc请求
         SubscribeServiceResponse response = requestToServer(request, SubscribeServiceResponse.class);
         redoService.subscriberRegistered(serviceName, groupName, clusters);
         return response.getServiceInfo();

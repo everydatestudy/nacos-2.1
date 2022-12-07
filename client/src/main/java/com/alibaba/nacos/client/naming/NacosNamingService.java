@@ -285,14 +285,18 @@ public class NacosNamingService implements NamingService {
         
         ServiceInfo serviceInfo;
         String clusterString = StringUtils.join(clusters, ",");
+        // 默认传递过来的是true
         if (subscribe) {
+            // 从客户端缓存中获取数据第一次出来一定为空
             serviceInfo = serviceInfoHolder.getServiceInfo(serviceName, groupName, clusterString);
             if (null == serviceInfo) {
+                //进行订阅
                 serviceInfo = clientProxy.subscribe(serviceName, groupName, clusterString);
             }
         } else {
             serviceInfo = clientProxy.queryInstancesOfService(serviceName, groupName, clusterString, 0, false);
         }
+        // 这里主要是从serviceInfo中获取对应实例列表
         return selectInstances(serviceInfo, healthy);
     }
     

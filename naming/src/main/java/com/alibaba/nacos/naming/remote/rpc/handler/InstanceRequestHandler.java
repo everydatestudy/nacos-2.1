@@ -60,7 +60,7 @@ public class InstanceRequestHandler extends RequestHandler<InstanceRequest, Inst
     }
     // 注册实例
     private InstanceResponse registerInstance(Service service, InstanceRequest request, RequestMeta meta) {
-        // key1:
+        // key1:注册实例
         clientOperationService.registerInstance(service, request.getInstance(), meta.getConnectionId());
         return new InstanceResponse(NamingRemoteConstants.REGISTER_INSTANCE);
     }

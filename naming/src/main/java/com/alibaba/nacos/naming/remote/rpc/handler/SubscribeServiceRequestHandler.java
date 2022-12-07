@@ -64,14 +64,19 @@ public class SubscribeServiceRequestHandler extends RequestHandler<SubscribeServ
         String groupName = request.getGroupName();
         String app = request.getHeader("app", "unknown");
         String groupedServiceName = NamingUtils.getGroupedName(serviceName, groupName);
+        // 将上面的参数封装到一个Service里面
         Service service = Service.newService(namespaceId, groupName, serviceName, true);
+        // 初始化一个Subscriber 里面传入客户端相关信息
         Subscriber subscriber = new Subscriber(meta.getClientIp(), meta.getClientVersion(), app, meta.getClientIp(),
                 namespaceId, groupedServiceName, 0, request.getClusters());
+        // 查询服务列表的信息
         ServiceInfo serviceInfo = ServiceUtil.selectInstancesWithHealthyProtection(serviceStorage.getData(service),
                 metadataManager.getServiceMetadata(service).orElse(null), subscriber);
         if (request.isSubscribe()) {
+            // 进行订阅
             clientOperationService.subscribeService(service, subscriber, meta.getConnectionId());
         } else {
+            // 取消订阅
             clientOperationService.unsubscribeService(service, subscriber, meta.getConnectionId());
         }
         return new SubscribeServiceResponse(ResponseCode.SUCCESS.getCode(), "success", serviceInfo);

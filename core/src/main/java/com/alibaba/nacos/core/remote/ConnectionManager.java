@@ -217,6 +217,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
      * @param connectionId connectionId.
      */
     public synchronized void unregister(String connectionId) {
+        // 移除连接
         Connection remove = this.connections.remove(connectionId);
         if (remove != null) {
             String clientIp = remove.getMetaInfo().clientIp;
@@ -229,6 +230,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
             }
             remove.close();
             Loggers.REMOTE_DIGEST.info("[{}]Connection unregistered successfully. ", connectionId);
+            // 通知客户端连接移除
             clientConnectionEventListenerRegistry.notifyClientDisConnected(remove);
         }
     }
@@ -297,6 +299,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                     int totalCount = connections.size();
                     Loggers.REMOTE_DIGEST.info("Connection check task start");
                     MetricsMonitor.getLongConnectionMonitor().set(totalCount);
+                    //key1: 获取所有连接
                     Set<Map.Entry<String, Connection>> entries = connections.entrySet();
                     int currentSdkClientCount = currentSdkClientCount();
                     boolean isLoaderClient = loadClient >= 0;
@@ -356,9 +359,11 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                             integer.decrementAndGet();
                             expelClient.add(client.getMetaInfo().getConnectionId());
                             expelCount--;
-                        } else if (now - client.getMetaInfo().getLastActiveTime() >= KEEP_ALIVE_TIME) {
-                            outDatedConnections.add(client.getMetaInfo().getConnectionId());
-                        }
+                        } else
+                            // key2：判断超时时间 ， 如果这里是20s
+                            if (now - client.getMetaInfo().getLastActiveTime() >= KEEP_ALIVE_TIME) {
+                                outDatedConnections.add(client.getMetaInfo().getConnectionId());
+                            }
                         
                     }
                     
@@ -409,11 +414,13 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                     if (CollectionUtils.isNotEmpty(outDatedConnections)) {
                         Set<String> successConnections = new HashSet<>();
                         final CountDownLatch latch = new CountDownLatch(outDatedConnections.size());
+                        // key3:遍历的集合
                         for (String outDateConnectionId : outDatedConnections) {
                             try {
                                 Connection connection = getConnection(outDateConnectionId);
                                 if (connection != null) {
                                     ClientDetectionRequest clientDetectionRequest = new ClientDetectionRequest();
+                                    // 发送一个探活请求
                                     connection.asyncRequest(clientDetectionRequest, new RequestCallBack() {
                                         @Override
                                         public Executor getExecutor() {
@@ -430,6 +437,7 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                                             latch.countDown();
                                             if (response != null && response.isSuccess()) {
                                                 connection.freshActiveTime();
+                                                // 如果探活成功就将其放到成功连接里面
                                                 successConnections.add(outDateConnectionId);
                                             }
                                         }
@@ -459,14 +467,18 @@ public class ConnectionManager extends Subscriber<ConnectionLimitRuleChangeEvent
                         latch.await(3000L, TimeUnit.MILLISECONDS);
                         Loggers.REMOTE_DIGEST
                                 .info("Out dated connection check successCount={}", successConnections.size());
-                        
+
+                        // key4: 遍历超时连接
                         for (String outDateConnectionId : outDatedConnections) {
+                            // 这里去掉探活成功的连接
                             if (!successConnections.contains(outDateConnectionId)) {
                                 Loggers.REMOTE_DIGEST
                                         .info("[{}]Unregister Out dated connection....", outDateConnectionId);
+                                // key5:注销掉
                                 unregister(outDateConnectionId);
                             }
                         }
+
                     }
                     
                     //reset loader client

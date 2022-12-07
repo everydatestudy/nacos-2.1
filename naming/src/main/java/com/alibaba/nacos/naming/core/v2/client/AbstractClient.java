@@ -58,10 +58,13 @@ public abstract class AbstractClient implements Client {
     }
     
     @Override
-    public boolean addServiceInstance(Service service, InstancePublishInfo instancePublishInfo) {
+    public boolean  addServiceInstance(Service service, InstancePublishInfo instancePublishInfo) {
+        // 这里我们看到他是一个keyInstanceRequestHandler:service value:对应的实例  但是这是一对一的？
         if (null == publishers.put(service, instancePublishInfo)) {
+            // metric这里主要是用于监控作用
             MetricsMonitor.incrementInstanceCount();
         }
+        // 这里发布事件 TODO,这里增加实例 观察者模式 
         NotifyCenter.publishEvent(new ClientEvent.ClientChangedEvent(this));
         Loggers.SRV_LOG.info("Client change for service {}, {}", service, getClientId());
         return true;
@@ -80,6 +83,7 @@ public abstract class AbstractClient implements Client {
     
     @Override
     public InstancePublishInfo getInstancePublishInfo(Service service) {
+        // 这里可以看出一个服务对应一个实例
         return publishers.get(service);
     }
     

@@ -68,6 +68,7 @@ public class EphemeralIpPortClientManager implements ClientManager {
     
     @Override
     public boolean clientConnected(final Client client) {
+        // 构建新的实例的客户端对象
         clients.computeIfAbsent(client.getClientId(), s -> {
             Loggers.SRV_LOG.info("Client connection {} connect", client.getClientId());
             IpPortBasedClient ipPortBasedClient = (IpPortBasedClient) client;

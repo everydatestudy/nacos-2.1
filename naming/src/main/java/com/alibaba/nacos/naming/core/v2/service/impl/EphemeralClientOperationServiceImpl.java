@@ -49,21 +49,26 @@ public class EphemeralClientOperationServiceImpl implements ClientOperationServi
     
     @Override
     public void registerInstance(Service service, Instance instance, String clientId) {
-        //
+        //获取注册表里的service，如果没有则初始化，
         Service singleton = ServiceManager.getInstance().getSingleton(service);
         if (!singleton.isEphemeral()) {
             throw new NacosRuntimeException(NacosException.INVALID_PARAM,
                     String.format("Current service %s is persistent service, can't register ephemeral instance.",
                             singleton.getGroupedServiceName()));
         }
+        // grpc给我封装的对象
         Client client = clientManager.getClient(clientId);
         if (!clientIsLegal(client, clientId)) {
             return;
         }
+        // 这里将instance转化为InstancePublishInfo
         InstancePublishInfo instanceInfo = getPublishInfo(instance);
+        // 将我们转化完毕的实例加到我们服务上
         client.addServiceInstance(singleton, instanceInfo);
         client.setLastUpdatedTime();
+        //发送注册事件 ：观察者模式
         NotifyCenter.publishEvent(new ClientOperationEvent.ClientRegisterServiceEvent(singleton, clientId));
+        // 发布实例元数据变化事件   观察者模式
         NotifyCenter
                 .publishEvent(new MetadataEvent.InstanceMetadataEvent(singleton, instanceInfo.getMetadataId(), false));
     }
@@ -91,12 +96,15 @@ public class EphemeralClientOperationServiceImpl implements ClientOperationServi
     @Override
     public void subscribeService(Service service, Subscriber subscriber, String clientId) {
         Service singleton = ServiceManager.getInstance().getSingletonIfExist(service).orElse(service);
+        // 获取客户端
         Client client = clientManager.getClient(clientId);
         if (!clientIsLegal(client, clientId)) {
             return;
         }
+        // 把订阅者和服务进行关系绑定
         client.addServiceSubscriber(singleton, subscriber);
         client.setLastUpdatedTime();
+        // 发布订阅事件
         NotifyCenter.publishEvent(new ClientOperationEvent.ClientSubscribeServiceEvent(singleton, clientId));
     }
     

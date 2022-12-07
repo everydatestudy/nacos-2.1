@@ -94,7 +94,7 @@ public class ServiceInfoUpdateService implements Closeable {
             if (futureMap.get(serviceKey) != null) {
                 return;
             }
-            
+            // 增加一个定时任务这里updateTask，会定期拉取任务更新缓存
             ScheduledFuture<?> future = addTask(new UpdateTask(serviceName, groupName, clusters));
             futureMap.put(serviceKey, future);
         }
@@ -175,7 +175,9 @@ public class ServiceInfoUpdateService implements Closeable {
                 
                 ServiceInfo serviceObj = serviceInfoHolder.getServiceInfoMap().get(serviceKey);
                 if (serviceObj == null) {
+                    // 调用grpc查询我们这服务下的实例集合
                     serviceObj = namingClientProxy.queryInstancesOfService(serviceName, groupName, clusters, 0, false);
+                    // 更新缓存
                     serviceInfoHolder.processServiceInfo(serviceObj);
                     lastRefTime = serviceObj.getLastRefTime();
                     return;
@@ -198,6 +200,7 @@ public class ServiceInfoUpdateService implements Closeable {
                 NAMING_LOGGER.warn("[NA] failed to update serviceName: {}", groupedServiceName, e);
             } finally {
                 if (!isCancel) {
+                    // 在没有失败情况下默认是1秒一次，如果有失败则左移动，最多到60秒一次
                     executor.schedule(this, Math.min(delayTime << failCount, DEFAULT_DELAY * 60),
                             TimeUnit.MILLISECONDS);
                 }

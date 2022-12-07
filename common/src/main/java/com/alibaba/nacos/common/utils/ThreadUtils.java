@@ -119,6 +119,7 @@ public final class ThreadUtils {
         System.out.println(getSuitableThreadCount(1));
         System.out.println(Runtime.getRuntime().availableProcessors());
     }
+
     public static void shutdownThreadPool(ExecutorService executor) {
         shutdownThreadPool(executor, null);
     }

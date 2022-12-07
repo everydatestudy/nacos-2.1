@@ -96,11 +96,13 @@ public class ConnectionBasedClientManager extends ClientConnectionEventListener 
     @Override
     public boolean clientDisconnected(String clientId) {
         Loggers.SRV_LOG.info("Client connection {} disconnect, remove instances and subscribers", clientId);
+        // 移除客户端
         ConnectionBasedClient client = clients.remove(clientId);
         if (null == client) {
             return true;
         }
         client.release();
+        // 发布事件
         NotifyCenter.publishEvent(new ClientEvent.ClientDisconnectEvent(client));
         return true;
     }

@@ -114,13 +114,20 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
         // Verify failed data should be sync directly.
         distroProtocol.syncToTarget(distroKey, DataOperation.ADD, event.getTargetServer(), 0L);
     }
-    
+
+    /**
+     * 进群数据同步
+     * @param event
+     */
     private void syncToAllServer(ClientEvent event) {
         Client client = event.getClient();
         // Only ephemeral data sync by Distro, persist client should sync by raft.
         if (null == client || !client.isEphemeral() || !clientManager.isResponsibleClient(client)) {
             return;
         }
+        /**
+         * 数据删除或者变更的情况下进行同步
+         */
         if (event instanceof ClientEvent.ClientDisconnectEvent) {
             DistroKey distroKey = new DistroKey(client.getClientId(), TYPE);
             distroProtocol.sync(distroKey, DataOperation.DELETE);
@@ -142,11 +149,13 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
             case CHANGE:
                 ClientSyncData clientSyncData = ApplicationUtils.getBean(Serializer.class)
                         .deserialize(distroData.getContent(), ClientSyncData.class);
+                // 新增修改实例
                 handlerClientSyncData(clientSyncData);
                 return true;
             case DELETE:
                 String deleteClientId = distroData.getDistroKey().getResourceKey();
                 Loggers.DISTRO.info("[Client-Delete] Received distro client sync data {}", deleteClientId);
+                // 删除实例
                 clientManager.clientDisconnected(deleteClientId);
                 return true;
             default:
@@ -156,8 +165,10 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
     
     private void handlerClientSyncData(ClientSyncData clientSyncData) {
         Loggers.DISTRO.info("[Client-Add] Received distro client sync data {}", clientSyncData.getClientId());
+        // 同步客户端信息
         clientManager.syncClientConnected(clientSyncData.getClientId(), clientSyncData.getAttributes());
         Client client = clientManager.getClient(clientSyncData.getClientId());
+        //
         upgradeClient(client, clientSyncData);
     }
     
@@ -174,6 +185,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
             InstancePublishInfo instancePublishInfo = instances.get(i);
             if (!instancePublishInfo.equals(client.getInstancePublishInfo(singleton))) {
                 client.addServiceInstance(singleton, instancePublishInfo);
+                //key: 发布注册事件
                 NotifyCenter.publishEvent(
                         new ClientOperationEvent.ClientRegisterServiceEvent(singleton, client.getClientId()));
             }
@@ -181,6 +193,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
         for (Service each : client.getAllPublishedService()) {
             if (!syncedService.contains(each)) {
                 client.removeServiceInstance(each);
+               // key: 发布注销事件
                 NotifyCenter.publishEvent(
                         new ClientOperationEvent.ClientDeregisterServiceEvent(each, client.getClientId()));
             }

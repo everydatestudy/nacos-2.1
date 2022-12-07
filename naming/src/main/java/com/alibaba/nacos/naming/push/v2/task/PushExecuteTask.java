@@ -58,6 +58,7 @@ public class PushExecuteTask extends AbstractExecuteTask {
         try {
             PushDataWrapper wrapper = generatePushData();
             ClientManager clientManager = delayTaskEngine.getClientManager();
+            // 获取订阅这个服务的客户端ID
             for (String each : getTargetClientIds()) {
                 Client client = clientManager.getClient(each);
                 if (null == client) {
@@ -65,6 +66,7 @@ public class PushExecuteTask extends AbstractExecuteTask {
                     continue;
                 }
                 Subscriber subscriber = clientManager.getClient(each).getSubscriber(service);
+                //key：进行任务处理
                 delayTaskEngine.getPushExecutor().doPushWithCallback(each, subscriber, wrapper,
                         new NamingPushCallback(each, subscriber, wrapper.getOriginalData(), delayTask.isPushToAll()));
             }
@@ -81,6 +83,7 @@ public class PushExecuteTask extends AbstractExecuteTask {
     }
     
     private Collection<String> getTargetClientIds() {
+        //
         return delayTask.isPushToAll() ? delayTaskEngine.getIndexesManager().getAllClientsSubscribeService(service)
                 : delayTask.getTargetClients();
     }

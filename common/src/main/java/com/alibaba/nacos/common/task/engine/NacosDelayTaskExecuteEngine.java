@@ -63,6 +63,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
         super(logger);
         tasks = new ConcurrentHashMap<>(initCapacity);
         processingExecutor = ExecutorFactory.newSingleScheduledExecutorService(new NameThreadFactory(name));
+        // 延迟任务，处理我们的taks
         processingExecutor
                 .scheduleWithFixedDelay(new ProcessRunnable(), processInterval, processInterval, TimeUnit.MILLISECONDS);
     }
@@ -124,10 +125,12 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
     public void addTask(Object key, AbstractDelayTask newTask) {
         lock.lock();
         try {
+            //根据service拿取对应任务，刚开始一定不存在
             AbstractDelayTask existTask = tasks.get(key);
             if (null != existTask) {
                 newTask.merge(existTask);
             }
+            // 将任务放到tasks里面，一定有地方处理他
             tasks.put(key, newTask);
         } finally {
             lock.unlock();
@@ -136,8 +139,10 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
     
     /**
      * process tasks in execute engine.
+     * 处理我们任务的引擎
      */
     protected void processTasks() {
+        //获取所有的task 的keys
         Collection<Object> keys = getAllTaskKeys();
         for (Object taskKey : keys) {
             AbstractDelayTask task = removeTask(taskKey);
@@ -151,6 +156,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
             }
             try {
                 // ReAdd task if process failed
+                // key:处理task任务
                 if (!processor.process(task)) {
                     retryFailedTask(taskKey, task);
                 }
@@ -171,6 +177,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
         @Override
         public void run() {
             try {
+                // 处理我们的任务
                 processTasks();
             } catch (Throwable e) {
                 getEngineLog().error(e.toString(), e);
