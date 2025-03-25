@@ -168,7 +168,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
         // 同步客户端信息
         clientManager.syncClientConnected(clientSyncData.getClientId(), clientSyncData.getAttributes());
         Client client = clientManager.getClient(clientSyncData.getClientId());
-        //
+        // 更新信息，发送注册时间
         upgradeClient(client, clientSyncData);
     }
     

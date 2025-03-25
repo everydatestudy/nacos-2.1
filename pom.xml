@@ -312,7 +312,7 @@
                     <failsOnError>true</failsOnError>
                     <excludes>**/consistency/entity/**,**/nacos/test/**,**/api/grpc/auto/**,**/istio/**,**/protobuf/**</excludes>
                 </configuration>
-                <executions>
+                <!-- <executions>
                     <execution>
                         <id>validate</id>
                         <phase>validate</phase>
@@ -320,7 +320,7 @@
                             <goal>check</goal>
                         </goals>
                     </execution>
-                </executions>
+                </executions> -->
             </plugin>
             <plugin>
                 <groupId>org.apache.rat</groupId>

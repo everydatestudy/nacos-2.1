@@ -79,6 +79,7 @@ public class SubscribeServiceRequestHandler extends RequestHandler<SubscribeServ
             // 取消订阅
             clientOperationService.unsubscribeService(service, subscriber, meta.getConnectionId());
         }
+        // 订阅的时候就返回对应的数据
         return new SubscribeServiceResponse(ResponseCode.SUCCESS.getCode(), "success", serviceInfo);
     }
 }
