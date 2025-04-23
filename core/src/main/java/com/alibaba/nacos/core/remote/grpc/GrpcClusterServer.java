@@ -22,26 +22,26 @@ import org.springframework.stereotype.Service;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * Grpc implementation as  a rpc server.
+ * Grpc implementation as a rpc server.
  *
  * @author liuzunfei
  * @version $Id: BaseGrpcServer.java, v 0.1 2020年07月13日 3:42 PM liuzunfei Exp $
  */
 @Service
 public class GrpcClusterServer extends BaseGrpcServer {
-    
-    private static final int PORT_OFFSET = 1001;
-    
-    @Override
-    public int rpcPortOffset() {
-        return PORT_OFFSET;
-    }
-    
-    @Override
-    public ThreadPoolExecutor getRpcExecutor() {
-        if (!GlobalExecutor.clusterRpcExecutor.allowsCoreThreadTimeOut()) {
-            GlobalExecutor.clusterRpcExecutor.allowCoreThreadTimeOut(true);
-        }
-        return GlobalExecutor.clusterRpcExecutor;
-    }
+
+	private static final int PORT_OFFSET = 1001;
+
+	@Override
+	public int rpcPortOffset() {
+		return PORT_OFFSET;
+	}
+
+	@Override
+	public ThreadPoolExecutor getRpcExecutor() {
+		if (!GlobalExecutor.clusterRpcExecutor.allowsCoreThreadTimeOut()) {
+			GlobalExecutor.clusterRpcExecutor.allowCoreThreadTimeOut(true);
+		}
+		return GlobalExecutor.clusterRpcExecutor;
+	}
 }

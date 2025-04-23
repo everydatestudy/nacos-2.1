@@ -45,9 +45,10 @@ public class InstanceRequestHandler extends RequestHandler<InstanceRequest, Inst
     @Override
     @Secured(action = ActionTypes.WRITE)
     public InstanceResponse handle(InstanceRequest request, RequestMeta meta) throws NacosException {
-        // 组成一个service里面没有实例，这里注意服务和实例的两个概念
+        //// 根据命名空间ID、组名、服务名、是否临时实例（默认为true）创建一个Service
         Service service = Service
                 .newService(request.getNamespace(), request.getGroupName(), request.getServiceName(), true);
+        // 根据客户端请求类型进行不同的处理： 注册 or 下线
         switch (request.getType()) {
             case NamingRemoteConstants.REGISTER_INSTANCE:
                 return registerInstance(service, request, meta);
@@ -61,7 +62,11 @@ public class InstanceRequestHandler extends RequestHandler<InstanceRequest, Inst
     // 注册实例
     private InstanceResponse registerInstance(Service service, InstanceRequest request, RequestMeta meta) {
         // key1:注册实例
+    	 // 注册实例
+        // service: Service{namespace='public', group='DEFAULT_GROUP', name='discovery-provider', ephemeral=true, revision=0}
+		// instance: Instance{instanceId='null', ip='172.110.0.134', port=1001, weight=1.0, healthy=true, enabled=true, ephemeral=true, clusterName='DEFAULT', serviceName='null', metadata={preserved.register.source=SPRING_CLOUD}}
         clientOperationService.registerInstance(service, request.getInstance(), meta.getConnectionId());
+        // 发布注册实例跟踪事件
         return new InstanceResponse(NamingRemoteConstants.REGISTER_INSTANCE);
     }
     // 注销实例

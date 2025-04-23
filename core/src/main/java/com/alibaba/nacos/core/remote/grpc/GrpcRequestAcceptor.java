@@ -70,10 +70,12 @@ public class GrpcRequestAcceptor extends RequestGrpc.RequestImplBase {
         
     }
     
-    @Override
+    @SuppressWarnings("unchecked")
+	@Override
     public void request(Payload grpcRequest, StreamObserver<Payload> responseObserver) {
         
         traceIfNecessary(grpcRequest, true);
+        //通过grpc的请求参数来处理的,第一个参数的类型然后得到她的name；
         String type = grpcRequest.getMetadata().getType();
         
         //server is on starting.

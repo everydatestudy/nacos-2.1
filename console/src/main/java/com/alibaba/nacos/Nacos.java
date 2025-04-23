@@ -30,9 +30,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @ServletComponentScan
 @EnableScheduling
 public class Nacos {
-    
-    public static void main(String[] args) {
-        SpringApplication.run(Nacos.class, args);
-    }
-}
 
+	public static void main(String[] args) {
+
+		System.setProperty("nacos.standalone", "true");
+		SpringApplication.run(Nacos.class, args);
+	}
+}
