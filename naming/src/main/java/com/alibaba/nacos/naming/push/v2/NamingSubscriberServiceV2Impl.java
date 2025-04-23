@@ -49,95 +49,98 @@ import java.util.stream.Stream;
  */
 @org.springframework.stereotype.Service
 public class NamingSubscriberServiceV2Impl extends SmartSubscriber implements NamingSubscriberService {
-    
-    private static final int PARALLEL_SIZE = 100;
-    
-    private final ClientManager clientManager;
-    
-    private final ClientServiceIndexesManager indexesManager;
-    
-    private final PushDelayTaskExecuteEngine delayTaskEngine;
-    
-    private final UpgradeJudgement upgradeJudgement;
-    
-    public NamingSubscriberServiceV2Impl(ClientManagerDelegate clientManager,
-            ClientServiceIndexesManager indexesManager, ServiceStorage serviceStorage,
-            NamingMetadataManager metadataManager, PushExecutorDelegate pushExecutor, UpgradeJudgement upgradeJudgement,
-            SwitchDomain switchDomain) {
-        this.clientManager = clientManager;
-        this.indexesManager = indexesManager;
-        this.upgradeJudgement = upgradeJudgement;
-        this.delayTaskEngine = new PushDelayTaskExecuteEngine(clientManager, indexesManager, serviceStorage,
-                metadataManager, pushExecutor, switchDomain);
-        NotifyCenter.registerSubscriber(this, NamingEventPublisherFactory.getInstance());
-        
-    }
-    
-    @Override
-    public Collection<Subscriber> getSubscribers(String namespaceId, String serviceName) {
-        String serviceNameWithoutGroup = NamingUtils.getServiceName(serviceName);
-        String groupName = NamingUtils.getGroupName(serviceName);
-        Service service = Service.newService(namespaceId, groupName, serviceNameWithoutGroup);
-        return getSubscribers(service);
-    }
-    
-    @Override
-    public Collection<Subscriber> getSubscribers(Service service) {
-        Collection<Subscriber> result = new HashSet<>();
-        for (String each : indexesManager.getAllClientsSubscribeService(service)) {
-            result.add(clientManager.getClient(each).getSubscriber(service));
-        }
-        return result;
-    }
-    
-    @Override
-    public Collection<Subscriber> getFuzzySubscribers(String namespaceId, String serviceName) {
-        Collection<Subscriber> result = new HashSet<>();
-        Stream<Service> serviceStream = getServiceStream();
-        String serviceNamePattern = NamingUtils.getServiceName(serviceName);
-        String groupNamePattern = NamingUtils.getGroupName(serviceName);
-        serviceStream.filter(service -> service.getNamespace().equals(namespaceId) && service.getName()
-                .contains(serviceNamePattern) && service.getGroup().contains(groupNamePattern))
-                .forEach(service -> result.addAll(getSubscribers(service)));
-        return result;
-    }
-    
-    @Override
-    public Collection<Subscriber> getFuzzySubscribers(Service service) {
-        return getFuzzySubscribers(service.getNamespace(), service.getGroupedServiceName());
-    }
-    
-    @Override
-    public List<Class<? extends Event>> subscribeTypes() {
-        List<Class<? extends Event>> result = new LinkedList<>();
-        result.add(ServiceEvent.ServiceChangedEvent.class);
-        result.add(ServiceEvent.ServiceSubscribedEvent.class);
-        return result;
-    }
-    
-    @Override
-    public void onEvent(Event event) {
-        if (!upgradeJudgement.isUseGrpcFeatures()) {
-            return;
-        }
-        if (event instanceof ServiceEvent.ServiceChangedEvent) {
-            // If service changed, push to all subscribers.
-            ServiceEvent.ServiceChangedEvent serviceChangedEvent = (ServiceEvent.ServiceChangedEvent) event;
-            Service service = serviceChangedEvent.getService();
-            // 任务变化事件处理,这里PushDelayTask没有指定需要通知的ip,也就是所有订阅者都通知
-            delayTaskEngine.addTask(service, new PushDelayTask(service, PushConfig.getInstance().getPushTaskDelay()));
-        } else if (event instanceof ServiceEvent.ServiceSubscribedEvent) {
-            // If service is subscribed by one client, only push this client.
-            ServiceEvent.ServiceSubscribedEvent subscribedEvent = (ServiceEvent.ServiceSubscribedEvent) event;
-            Service service = subscribedEvent.getService();
-            // 处理订阅事件, 这里PushDelayTask 指定了我们需要通知的ip，也就是订阅用户的ip
-            delayTaskEngine.addTask(service, new PushDelayTask(service, PushConfig.getInstance().getPushTaskDelay(),
-                    subscribedEvent.getClientId()));
-        }
-    }
 
-    private Stream<Service> getServiceStream() {
-        Collection<Service> services = indexesManager.getSubscribedService();
-        return services.size() > PARALLEL_SIZE ? services.parallelStream() : services.stream();
-    }
+	private static final int PARALLEL_SIZE = 100;
+
+	private final ClientManager clientManager;
+
+	private final ClientServiceIndexesManager indexesManager;
+
+	private final PushDelayTaskExecuteEngine delayTaskEngine;
+
+	private final UpgradeJudgement upgradeJudgement;
+
+	public NamingSubscriberServiceV2Impl(ClientManagerDelegate clientManager,
+			ClientServiceIndexesManager indexesManager, ServiceStorage serviceStorage,
+			NamingMetadataManager metadataManager, PushExecutorDelegate pushExecutor, UpgradeJudgement upgradeJudgement,
+			SwitchDomain switchDomain) {
+		this.clientManager = clientManager;
+		this.indexesManager = indexesManager;
+		this.upgradeJudgement = upgradeJudgement;
+		this.delayTaskEngine = new PushDelayTaskExecuteEngine(clientManager, indexesManager, serviceStorage,
+				metadataManager, pushExecutor, switchDomain);
+		NotifyCenter.registerSubscriber(this, NamingEventPublisherFactory.getInstance());
+
+	}
+
+	@Override
+	public Collection<Subscriber> getSubscribers(String namespaceId, String serviceName) {
+		String serviceNameWithoutGroup = NamingUtils.getServiceName(serviceName);
+		String groupName = NamingUtils.getGroupName(serviceName);
+		Service service = Service.newService(namespaceId, groupName, serviceNameWithoutGroup);
+		return getSubscribers(service);
+	}
+
+	@Override
+	public Collection<Subscriber> getSubscribers(Service service) {
+		Collection<Subscriber> result = new HashSet<>();
+		for (String each : indexesManager.getAllClientsSubscribeService(service)) {
+			result.add(clientManager.getClient(each).getSubscriber(service));
+		}
+		return result;
+	}
+
+	@Override
+	public Collection<Subscriber> getFuzzySubscribers(String namespaceId, String serviceName) {
+		Collection<Subscriber> result = new HashSet<>();
+		Stream<Service> serviceStream = getServiceStream();
+		String serviceNamePattern = NamingUtils.getServiceName(serviceName);
+		String groupNamePattern = NamingUtils.getGroupName(serviceName);
+		serviceStream.filter(service -> service.getNamespace().equals(namespaceId)
+				&& service.getName().contains(serviceNamePattern) && service.getGroup().contains(groupNamePattern))
+				.forEach(service -> result.addAll(getSubscribers(service)));
+		return result;
+	}
+
+	@Override
+	public Collection<Subscriber> getFuzzySubscribers(Service service) {
+		return getFuzzySubscribers(service.getNamespace(), service.getGroupedServiceName());
+	}
+
+	@Override
+	public List<Class<? extends Event>> subscribeTypes() {
+		List<Class<? extends Event>> result = new LinkedList<>();
+		result.add(ServiceEvent.ServiceChangedEvent.class);
+		result.add(ServiceEvent.ServiceSubscribedEvent.class);
+		return result;
+	}
+
+	@Override
+	public void onEvent(Event event) {
+		/**
+		 * 1.服务变更事件，推送这个变更给所有的订阅者 2.如果服务被某个客户端订阅了，那么只会推送这个变更给这个客户端
+		 */
+		if (!upgradeJudgement.isUseGrpcFeatures()) {
+			return;
+		}
+		if (event instanceof ServiceEvent.ServiceChangedEvent) {
+			// If service changed, push to all subscribers.
+			ServiceEvent.ServiceChangedEvent serviceChangedEvent = (ServiceEvent.ServiceChangedEvent) event;
+			Service service = serviceChangedEvent.getService();
+			// 将service信息包装成一个PushDelayTask，添加到延时任务调度引擎，最终实际会执行PushDelayTaskProcessor.process()方法
+			delayTaskEngine.addTask(service, new PushDelayTask(service, PushConfig.getInstance().getPushTaskDelay()));
+		} else if (event instanceof ServiceEvent.ServiceSubscribedEvent) {
+			// If service is subscribed by one client, only push this client.
+			ServiceEvent.ServiceSubscribedEvent subscribedEvent = (ServiceEvent.ServiceSubscribedEvent) event;
+			Service service = subscribedEvent.getService();
+			// 处理订阅事件, 这里PushDelayTask 指定了我们需要通知的ip，也就是订阅用户的ip
+			delayTaskEngine.addTask(service, new PushDelayTask(service, PushConfig.getInstance().getPushTaskDelay(),
+					subscribedEvent.getClientId()));
+		}
+	}
+
+	private Stream<Service> getServiceStream() {
+		Collection<Service> services = indexesManager.getSubscribedService();
+		return services.size() > PARALLEL_SIZE ? services.parallelStream() : services.stream();
+	}
 }

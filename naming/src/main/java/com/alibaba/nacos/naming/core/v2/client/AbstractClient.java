@@ -36,106 +36,106 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author xiweng.yy
  */
 public abstract class AbstractClient implements Client {
-    
-    protected final ConcurrentHashMap<Service, InstancePublishInfo> publishers = new ConcurrentHashMap<>(16, 0.75f, 1);
-    
-    protected final ConcurrentHashMap<Service, Subscriber> subscribers = new ConcurrentHashMap<>(16, 0.75f, 1);
-    
-    protected volatile long lastUpdatedTime;
-    
-    public AbstractClient() {
-        lastUpdatedTime = System.currentTimeMillis();
-    }
-    
-    @Override
-    public void setLastUpdatedTime() {
-        this.lastUpdatedTime = System.currentTimeMillis();
-    }
-    
-    @Override
-    public long getLastUpdatedTime() {
-        return lastUpdatedTime;
-    }
-    
-    @Override
-    public boolean  addServiceInstance(Service service, InstancePublishInfo instancePublishInfo) {
-        // 这里我们看到他是一个keyInstanceRequestHandler:service value:对应的实例  但是这是一对一的？
-        if (null == publishers.put(service, instancePublishInfo)) {
-            // metric这里主要是用于监控作用
-            MetricsMonitor.incrementInstanceCount();
-        }
-        // 这里发布事件 TODO,这里增加实例 观察者模式 
-        NotifyCenter.publishEvent(new ClientEvent.ClientChangedEvent(this));
-        Loggers.SRV_LOG.info("Client change for service {}, {}", service, getClientId());
-        return true;
-    }
-    
-    @Override
-    public InstancePublishInfo removeServiceInstance(Service service) {
-        InstancePublishInfo result = publishers.remove(service);
-        if (null != result) {
-            MetricsMonitor.decrementInstanceCount();
-            NotifyCenter.publishEvent(new ClientEvent.ClientChangedEvent(this));
-        }
-        Loggers.SRV_LOG.info("Client remove for service {}, {}", service, getClientId());
-        return result;
-    }
-    
-    @Override
-    public InstancePublishInfo getInstancePublishInfo(Service service) {
-        // 这里可以看出一个服务对应一个实例
-        return publishers.get(service);
-    }
-    
-    @Override
-    public Collection<Service> getAllPublishedService() {
-        return publishers.keySet();
-    }
-    
-    @Override
-    public boolean addServiceSubscriber(Service service, Subscriber subscriber) {
-        if (null == subscribers.put(service, subscriber)) {
-            MetricsMonitor.incrementSubscribeCount();
-        }
-        return true;
-    }
-    
-    @Override
-    public boolean removeServiceSubscriber(Service service) {
-        if (null != subscribers.remove(service)) {
-            MetricsMonitor.decrementSubscribeCount();
-        }
-        return true;
-    }
-    
-    @Override
-    public Subscriber getSubscriber(Service service) {
-        return subscribers.get(service);
-    }
-    
-    @Override
-    public Collection<Service> getAllSubscribeService() {
-        return subscribers.keySet();
-    }
-    
-    @Override
-    public ClientSyncData generateSyncData() {
-        List<String> namespaces = new LinkedList<>();
-        List<String> groupNames = new LinkedList<>();
-        List<String> serviceNames = new LinkedList<>();
-        List<InstancePublishInfo> instances = new LinkedList<>();
-        for (Map.Entry<Service, InstancePublishInfo> entry : publishers.entrySet()) {
-            namespaces.add(entry.getKey().getNamespace());
-            groupNames.add(entry.getKey().getGroup());
-            serviceNames.add(entry.getKey().getName());
-            instances.add(entry.getValue());
-        }
-        return new ClientSyncData(getClientId(), namespaces, groupNames, serviceNames, instances);
-    }
-    
-    @Override
-    public void release() {
-        MetricsMonitor.getIpCountMonitor().addAndGet(-1 * publishers.size());
-        MetricsMonitor.getSubscriberCount().addAndGet(-1 * subscribers.size());
-    }
+
+	protected final ConcurrentHashMap<Service, InstancePublishInfo> publishers = new ConcurrentHashMap<>(16, 0.75f, 1);
+
+	protected final ConcurrentHashMap<Service, Subscriber> subscribers = new ConcurrentHashMap<>(16, 0.75f, 1);
+
+	protected volatile long lastUpdatedTime;
+
+	public AbstractClient() {
+		lastUpdatedTime = System.currentTimeMillis();
+	}
+
+	@Override
+	public void setLastUpdatedTime() {
+		this.lastUpdatedTime = System.currentTimeMillis();
+	}
+
+	@Override
+	public long getLastUpdatedTime() {
+		return lastUpdatedTime;
+	}
+
+	@Override
+	public boolean addServiceInstance(Service service, InstancePublishInfo instancePublishInfo) {
+		// 这里我们看到他是一个keyInstanceRequestHandler:service value:对应的实例 但是这是一对一的？
+		if (null == publishers.put(service, instancePublishInfo)) {
+			// metric这里主要是用于监控作用
+			MetricsMonitor.incrementInstanceCount();
+		}
+		// 发布一个客户端注册事件通知订阅者
+		NotifyCenter.publishEvent(new ClientEvent.ClientChangedEvent(this));
+		Loggers.SRV_LOG.info("Client change for service {}, {}", service, getClientId());
+		return true;
+	}
+
+	@Override
+	public InstancePublishInfo removeServiceInstance(Service service) {
+		InstancePublishInfo result = publishers.remove(service);
+		if (null != result) {
+			MetricsMonitor.decrementInstanceCount();
+			NotifyCenter.publishEvent(new ClientEvent.ClientChangedEvent(this));
+		}
+		Loggers.SRV_LOG.info("Client remove for service {}, {}", service, getClientId());
+		return result;
+	}
+
+	@Override
+	public InstancePublishInfo getInstancePublishInfo(Service service) {
+		// 这里可以看出一个服务对应一个实例
+		return publishers.get(service);
+	}
+
+	@Override
+	public Collection<Service> getAllPublishedService() {
+		return publishers.keySet();
+	}
+
+	@Override
+	public boolean addServiceSubscriber(Service service, Subscriber subscriber) {
+		if (null == subscribers.put(service, subscriber)) {
+			MetricsMonitor.incrementSubscribeCount();
+		}
+		return true;
+	}
+
+	@Override
+	public boolean removeServiceSubscriber(Service service) {
+		if (null != subscribers.remove(service)) {
+			MetricsMonitor.decrementSubscribeCount();
+		}
+		return true;
+	}
+
+	@Override
+	public Subscriber getSubscriber(Service service) {
+		return subscribers.get(service);
+	}
+
+	@Override
+	public Collection<Service> getAllSubscribeService() {
+		return subscribers.keySet();
+	}
+
+	@Override
+	public ClientSyncData generateSyncData() {
+		List<String> namespaces = new LinkedList<>();
+		List<String> groupNames = new LinkedList<>();
+		List<String> serviceNames = new LinkedList<>();
+		List<InstancePublishInfo> instances = new LinkedList<>();
+		for (Map.Entry<Service, InstancePublishInfo> entry : publishers.entrySet()) {
+			namespaces.add(entry.getKey().getNamespace());
+			groupNames.add(entry.getKey().getGroup());
+			serviceNames.add(entry.getKey().getName());
+			instances.add(entry.getValue());
+		}
+		return new ClientSyncData(getClientId(), namespaces, groupNames, serviceNames, instances);
+	}
+
+	@Override
+	public void release() {
+		MetricsMonitor.getIpCountMonitor().addAndGet(-1 * publishers.size());
+		MetricsMonitor.getSubscriberCount().addAndGet(-1 * subscribers.size());
+	}
 }
