@@ -57,12 +57,13 @@ public class DumpProcessor implements NacosTaskProcessor {
         String handleIp = dumpTask.getHandleIp();
         boolean isBeta = dumpTask.isBeta();
         String tag = dumpTask.getTag();
-        
+        // 构建ConfigDumpEventBuild
         ConfigDumpEvent.ConfigDumpEventBuilder build = ConfigDumpEvent.builder().namespaceId(tenant).dataId(dataId)
                 .group(group).isBeta(isBeta).tag(tag).lastModifiedTs(lastModified).handleIp(handleIp);
         
         if (isBeta) {
             // if publish beta, then dump config, update beta cache
+        	// 如果发布测试版，则转储配置，更新测试版缓存
             ConfigInfo4Beta cf = persistService.findConfigInfo4Beta(dataId, group, tenant);
             
             build.remove(Objects.isNull(cf));

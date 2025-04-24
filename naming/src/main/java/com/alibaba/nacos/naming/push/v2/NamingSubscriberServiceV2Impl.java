@@ -55,7 +55,7 @@ public class NamingSubscriberServiceV2Impl extends SmartSubscriber implements Na
 	private final ClientManager clientManager;
 
 	private final ClientServiceIndexesManager indexesManager;
-
+	// 任务引擎，在构造方法中进行初始化，类型为PushDelayTaskExecuteEngine
 	private final PushDelayTaskExecuteEngine delayTaskEngine;
 
 	private final UpgradeJudgement upgradeJudgement;

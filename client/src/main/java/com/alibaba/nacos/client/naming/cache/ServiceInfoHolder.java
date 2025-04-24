@@ -120,6 +120,8 @@ public class ServiceInfoHolder implements Closeable {
     
     public ServiceInfo getServiceInfo(final String serviceName, final String groupName, final String clusters) {
         NAMING_LOGGER.debug("failover-mode: {}", failoverReactor.isFailoverSwitch());
+        // 组装服务名(带组名)：groupName@@serviceName
+        // 例如：DEFAULT_GROUP@@discovery-provider
         String groupedServiceName = NamingUtils.getGroupedName(serviceName, groupName);
         String key = ServiceInfo.getKey(groupedServiceName, clusters);
         if (failoverReactor.isFailoverSwitch()) {

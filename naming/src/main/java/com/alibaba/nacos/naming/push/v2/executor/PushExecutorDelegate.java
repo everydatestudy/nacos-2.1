@@ -32,33 +32,34 @@ import java.util.Optional;
 @SuppressWarnings("PMD.ServiceOrDaoClassShouldEndWithImplRule")
 @Component
 public class PushExecutorDelegate implements PushExecutor {
-    
-    private final PushExecutorRpcImpl rpcPushExecuteService;
-    
-    private final PushExecutorUdpImpl udpPushExecuteService;
-    
-    public PushExecutorDelegate(PushExecutorRpcImpl rpcPushExecuteService, PushExecutorUdpImpl udpPushExecuteService) {
-        this.rpcPushExecuteService = rpcPushExecuteService;
-        this.udpPushExecuteService = udpPushExecuteService;
-    }
-    
-    @Override
-    public void doPush(String clientId, Subscriber subscriber, PushDataWrapper data) {
-        getPushExecuteService(clientId, subscriber).doPush(clientId, subscriber, data);
-    }
-    
-    @Override
-    public void doPushWithCallback(String clientId, Subscriber subscriber, PushDataWrapper data, PushCallBack callBack) {
-        getPushExecuteService(clientId, subscriber).doPushWithCallback(clientId, subscriber, data, callBack);
-    }
-    
-    private PushExecutor getPushExecuteService(String clientId, Subscriber subscriber) {
-        Optional<SpiPushExecutor> result = SpiImplPushExecutorHolder.getInstance()
-                .findPushExecutorSpiImpl(clientId, subscriber);
-        if (result.isPresent()) {
-            return result.get();
-        }
-        // use nacos default push executor
-        return clientId.contains(IpPortBasedClient.ID_DELIMITER) ? udpPushExecuteService : rpcPushExecuteService;
-    }
+	// rpc执行类，V2版本使用
+	private final PushExecutorRpcImpl rpcPushExecuteService;
+	// udp执行类，V1版本使用
+	private final PushExecutorUdpImpl udpPushExecuteService;
+
+	public PushExecutorDelegate(PushExecutorRpcImpl rpcPushExecuteService, PushExecutorUdpImpl udpPushExecuteService) {
+		this.rpcPushExecuteService = rpcPushExecuteService;
+		this.udpPushExecuteService = udpPushExecuteService;
+	}
+
+	@Override
+	public void doPush(String clientId, Subscriber subscriber, PushDataWrapper data) {
+		getPushExecuteService(clientId, subscriber).doPush(clientId, subscriber, data);
+	}
+
+	@Override
+	public void doPushWithCallback(String clientId, Subscriber subscriber, PushDataWrapper data,
+			PushCallBack callBack) {
+		getPushExecuteService(clientId, subscriber).doPushWithCallback(clientId, subscriber, data, callBack);
+	}
+
+	private PushExecutor getPushExecuteService(String clientId, Subscriber subscriber) {
+		Optional<SpiPushExecutor> result = SpiImplPushExecutorHolder.getInstance().findPushExecutorSpiImpl(clientId,
+				subscriber);
+		if (result.isPresent()) {
+			return result.get();
+		}
+		// use nacos default push executor
+		return clientId.contains(IpPortBasedClient.ID_DELIMITER) ? udpPushExecuteService : rpcPushExecuteService;
+	}
 }

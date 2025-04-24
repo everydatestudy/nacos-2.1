@@ -64,432 +64,441 @@ import java.util.concurrent.TimeUnit;
  */
 @Service
 public class AsyncNotifyService {
-    
-    private static final Logger LOGGER = LoggerFactory.getLogger(AsyncNotifyService.class);
-    
-    private final NacosAsyncRestTemplate nacosAsyncRestTemplate = HttpClientManager.getNacosAsyncRestTemplate();
-    
-    private static final int MIN_RETRY_INTERVAL = 500;
-    
-    private static final int INCREASE_STEPS = 1000;
-    
-    private static final int MAX_COUNT = 6;
-    
-    @Autowired
-    private DumpService dumpService;
-    
-    @Autowired
-    private ConfigClusterRpcClientProxy configClusterRpcClientProxy;
-    
-    private ServerMemberManager memberManager;
-    
-    @Autowired
-    public AsyncNotifyService(ServerMemberManager memberManager) {
-        this.memberManager = memberManager;
-        
-        // Register ConfigDataChangeEvent to NotifyCenter.
-        NotifyCenter.registerToPublisher(ConfigDataChangeEvent.class, NotifyCenter.ringBufferSize);
-        
-        // Register A Subscriber to subscribe ConfigDataChangeEvent.
-        NotifyCenter.registerSubscriber(new Subscriber() {
-            
-            @Override
-            public void onEvent(Event event) {
-                // Generate ConfigDataChangeEvent concurrently
-                if (event instanceof ConfigDataChangeEvent) {
-                    ConfigDataChangeEvent evt = (ConfigDataChangeEvent) event;
-                    long dumpTs = evt.lastModifiedTs;
-                    String dataId = evt.dataId;
-                    String group = evt.group;
-                    String tenant = evt.tenant;
-                    String tag = evt.tag;
-                    Collection<Member> ipList = memberManager.allMembers();
-                    
-                    // In fact, any type of queue here can be
-                    Queue<NotifySingleTask> httpQueue = new LinkedList<NotifySingleTask>();
-                    Queue<NotifySingleRpcTask> rpcQueue = new LinkedList<NotifySingleRpcTask>();
-                    
-                    for (Member member : ipList) {
-                        if (!MemberUtil.isSupportedLongCon(member)) {
-                            httpQueue.add(new NotifySingleTask(dataId, group, tenant, tag, dumpTs, member.getAddress(),
-                                    evt.isBeta));
-                        } else {
-                            rpcQueue.add(
-                                    new NotifySingleRpcTask(dataId, group, tenant, tag, dumpTs, evt.isBeta, member));
-                        }
-                    }
-                    if (!httpQueue.isEmpty()) {
-                        ConfigExecutor.executeAsyncNotify(new AsyncTask(nacosAsyncRestTemplate, httpQueue));
-                    }
-                    if (!rpcQueue.isEmpty()) {
-                        ConfigExecutor.executeAsyncNotify(new AsyncRpcTask(rpcQueue));
-                    }
-                    
-                }
-            }
-            
-            @Override
-            public Class<? extends Event> subscribeType() {
-                return ConfigDataChangeEvent.class;
-            }
-        });
-    }
-    
-    class AsyncTask implements Runnable {
-        
-        private Queue<NotifySingleTask> queue;
-        
-        private NacosAsyncRestTemplate restTemplate;
-        
-        public AsyncTask(NacosAsyncRestTemplate restTemplate, Queue<NotifySingleTask> queue) {
-            this.restTemplate = restTemplate;
-            this.queue = queue;
-        }
-        
-        @Override
-        public void run() {
-            executeAsyncInvoke();
-        }
-        
-        private void executeAsyncInvoke() {
-            while (!queue.isEmpty()) {
-                NotifySingleTask task = queue.poll();
-                String targetIp = task.getTargetIP();
-                if (memberManager.hasMember(targetIp)) {
-                    // start the health check and there are ips that are not monitored, put them directly in the notification queue, otherwise notify
-                    boolean unHealthNeedDelay = memberManager.isUnHealth(targetIp);
-                    if (unHealthNeedDelay) {
-                        // target ip is unhealthy, then put it in the notification list
-                        ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
-                                task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_UNHEALTH,
-                                0, task.target);
-                        // get delay time and set fail count to the task
-                        asyncTaskExecute(task);
-                    } else {
-                        Header header = Header.newInstance();
-                        header.addParam(NotifyService.NOTIFY_HEADER_LAST_MODIFIED,
-                                String.valueOf(task.getLastModified()));
-                        header.addParam(NotifyService.NOTIFY_HEADER_OP_HANDLE_IP, InetUtils.getSelfIP());
-                        if (task.isBeta) {
-                            header.addParam("isBeta", "true");
-                        }
-                        AuthHeaderUtil.addIdentityToHeader(header);
-                        restTemplate.get(task.url, header, Query.EMPTY, String.class, new AsyncNotifyCallBack(task));
-                    }
-                }
-            }
-        }
-    }
-    
-    class AsyncRpcTask implements Runnable {
-        
-        private Queue<NotifySingleRpcTask> queue;
-        
-        public AsyncRpcTask(Queue<NotifySingleRpcTask> queue) {
-            this.queue = queue;
-        }
-        
-        @Override
-        public void run() {
-            while (!queue.isEmpty()) {
-                NotifySingleRpcTask task = queue.poll();
-                
-                ConfigChangeClusterSyncRequest syncRequest = new ConfigChangeClusterSyncRequest();
-                syncRequest.setDataId(task.getDataId());
-                syncRequest.setGroup(task.getGroup());
-                syncRequest.setBeta(task.isBeta);
-                syncRequest.setLastModified(task.getLastModified());
-                syncRequest.setTag(task.tag);
-                syncRequest.setTenant(task.getTenant());
-                Member member = task.member;
-                if (memberManager.getSelf().equals(member)) {
-                    if (syncRequest.isBeta()) {
-                        dumpService.dump(syncRequest.getDataId(), syncRequest.getGroup(), syncRequest.getTenant(),
-                                syncRequest.getLastModified(), NetUtils.localIP(), true);
-                    } else {
-                        dumpService.dump(syncRequest.getDataId(), syncRequest.getGroup(), syncRequest.getTenant(),
-                                syncRequest.getTag(), syncRequest.getLastModified(), NetUtils.localIP());
-                    }
-                    continue;
-                }
-                
-                if (memberManager.hasMember(member.getAddress())) {
-                    // start the health check and there are ips that are not monitored, put them directly in the notification queue, otherwise notify
-                    boolean unHealthNeedDelay = memberManager.isUnHealth(member.getAddress());
-                    if (unHealthNeedDelay) {
-                        // target ip is unhealthy, then put it in the notification list
-                        ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
-                                task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_UNHEALTH,
-                                0, member.getAddress());
-                        // get delay time and set fail count to the task
-                        asyncTaskExecute(task);
-                    } else {
-    
-                        if (!MemberUtil.isSupportedLongCon(member)) {
-                            asyncTaskExecute(
-                                    new NotifySingleTask(task.getDataId(), task.getGroup(), task.getTenant(), task.tag,
-                                            task.getLastModified(), member.getAddress(), task.isBeta));
-                        } else {
-                            try {
-                                configClusterRpcClientProxy
-                                        .syncConfigChange(member, syncRequest, new AsyncRpcNotifyCallBack(task));
-                            } catch (Exception e) {
-                                MetricsMonitor.getConfigNotifyException().increment();
-                                asyncTaskExecute(task);
-                            }
-                        }
-                      
-                    }
-                } else {
-                    //No nothig if  member has offline.
-                }
-                
-            }
-        }
-    }
-    
-    static class NotifySingleRpcTask extends NotifyTask {
-        
-        private Member member;
-        
-        private boolean isBeta;
-        
-        private String tag;
-        
-        public NotifySingleRpcTask(String dataId, String group, String tenant, String tag, long lastModified,
-                boolean isBeta, Member member) {
-            super(dataId, group, tenant, lastModified);
-            this.member = member;
-            this.isBeta = isBeta;
-            this.tag = tag;
-        }
-    }
-    
-    private void asyncTaskExecute(NotifySingleTask task) {
-        int delay = getDelayTime(task);
-        Queue<NotifySingleTask> queue = new LinkedList<NotifySingleTask>();
-        queue.add(task);
-        AsyncTask asyncTask = new AsyncTask(nacosAsyncRestTemplate, queue);
-        ConfigExecutor.scheduleAsyncNotify(asyncTask, delay, TimeUnit.MILLISECONDS);
-    }
-    
-    private void asyncTaskExecute(NotifySingleRpcTask task) {
-        int delay = getDelayTime(task);
-        Queue<NotifySingleRpcTask> queue = new LinkedList<NotifySingleRpcTask>();
-        queue.add(task);
-        AsyncRpcTask asyncTask = new AsyncRpcTask(queue);
-        ConfigExecutor.scheduleAsyncNotify(asyncTask, delay, TimeUnit.MILLISECONDS);
-    }
-    
-    class AsyncNotifyCallBack implements Callback<String> {
-        
-        private NotifySingleTask task;
-        
-        public AsyncNotifyCallBack(NotifySingleTask task) {
-            this.task = task;
-        }
-        
-        @Override
-        public void onReceive(RestResult<String> result) {
-            
-            long delayed = System.currentTimeMillis() - task.getLastModified();
-            
-            if (result.ok()) {
-                ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
-                        task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_OK, delayed,
-                        task.target);
-            } else {
-                LOGGER.error("[notify-error] target:{} dataId:{} group:{} ts:{} code:{}", task.target, task.getDataId(),
-                        task.getGroup(), task.getLastModified(), result.getCode());
-                ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
-                        task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_ERROR, delayed,
-                        task.target);
-                
-                //get delay time and set fail count to the task
-                asyncTaskExecute(task);
-                
-                LogUtil.NOTIFY_LOG
-                        .error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.target, task.getDataId(),
-                                task.getGroup(), task.getLastModified());
-                
-                MetricsMonitor.getConfigNotifyException().increment();
-            }
-        }
-        
-        @Override
-        public void onError(Throwable ex) {
-            
-            long delayed = System.currentTimeMillis() - task.getLastModified();
-            LOGGER.error("[notify-exception] target:{} dataId:{} group:{} ts:{} ex:{}", task.target, task.getDataId(),
-                    task.getGroup(), task.getLastModified(), ex.toString());
-            ConfigTraceService
-                    .logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null, task.getLastModified(),
-                            InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_EXCEPTION, delayed, task.target);
-            
-            //get delay time and set fail count to the task
-            asyncTaskExecute(task);
-            LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.target, task.getDataId(),
-                    task.getGroup(), task.getLastModified());
-            
-            MetricsMonitor.getConfigNotifyException().increment();
-        }
-        
-        @Override
-        public void onCancel() {
-            
-            LogUtil.NOTIFY_LOG.error("[notify-exception] target:{} dataId:{} group:{} ts:{} method:{}", task.target,
-                    task.getDataId(), task.getGroup(), task.getLastModified(), "CANCELED");
-            
-            //get delay time and set fail count to the task
-            asyncTaskExecute(task);
-            LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.target, task.getDataId(),
-                    task.getGroup(), task.getLastModified());
-            
-            MetricsMonitor.getConfigNotifyException().increment();
-        }
-    }
-    
-    class AsyncRpcNotifyCallBack implements RequestCallBack<ConfigChangeClusterSyncResponse> {
-        
-        private NotifySingleRpcTask task;
-        
-        public AsyncRpcNotifyCallBack(NotifySingleRpcTask task) {
-            this.task = task;
-        }
-        
-        @Override
-        public Executor getExecutor() {
-            return ConfigExecutor.getConfigSubServiceExecutor();
-        }
-        
-        @Override
-        public long getTimeout() {
-            return 1000L;
-        }
-        
-        @Override
-        public void onResponse(ConfigChangeClusterSyncResponse response) {
-            long delayed = System.currentTimeMillis() - task.getLastModified();
-            
-            if (response.isSuccess()) {
-                ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
-                        task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_OK, delayed,
-                        task.member.getAddress());
-            } else {
-                LOGGER.error("[notify-error] target:{} dataId:{} group:{} ts:{} code:{}", task.member.getAddress(),
-                        task.getDataId(), task.getGroup(), task.getLastModified(), response.getErrorCode());
-                ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
-                        task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_ERROR, delayed,
-                        task.member.getAddress());
-                
-                //get delay time and set fail count to the task
-                asyncTaskExecute(task);
-                
-                LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.member.getAddress(),
-                        task.getDataId(), task.getGroup(), task.getLastModified());
-                
-                MetricsMonitor.getConfigNotifyException().increment();
-            }
-        }
-        
-        @Override
-        public void onException(Throwable ex) {
-            long delayed = System.currentTimeMillis() - task.getLastModified();
-            LOGGER.error("[notify-exception] target:{} dataId:{} group:{} ts:{} ex:{}", task.member.getAddress(),
-                    task.getDataId(), task.getGroup(), task.getLastModified(), ex.toString());
-            ConfigTraceService
-                    .logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null, task.getLastModified(),
-                            InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_EXCEPTION, delayed,
-                            task.member.getAddress());
-            
-            //get delay time and set fail count to the task
-            asyncTaskExecute(task);
-            LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.member.getAddress(),
-                    task.getDataId(), task.getGroup(), task.getLastModified());
-            
-            MetricsMonitor.getConfigNotifyException().increment();
-        }
-    }
-    
-    static class NotifySingleTask extends NotifyTask {
-        
-        private String target;
-        
-        public String url;
-        
-        private boolean isBeta;
-        
-        private static final String URL_PATTERN =
-                "http://{0}{1}" + Constants.COMMUNICATION_CONTROLLER_PATH + "/dataChange" + "?dataId={2}&group={3}";
-        
-        private static final String URL_PATTERN_TENANT =
-                "http://{0}{1}" + Constants.COMMUNICATION_CONTROLLER_PATH + "/dataChange"
-                        + "?dataId={2}&group={3}&tenant={4}";
-        
-        private int failCount;
-        
-        public NotifySingleTask(String dataId, String group, String tenant, long lastModified, String target) {
-            this(dataId, group, tenant, lastModified, target, false);
-        }
-        
-        public NotifySingleTask(String dataId, String group, String tenant, long lastModified, String target,
-                boolean isBeta) {
-            this(dataId, group, tenant, null, lastModified, target, isBeta);
-        }
-        
-        public NotifySingleTask(String dataId, String group, String tenant, String tag, long lastModified,
-                String target, boolean isBeta) {
-            super(dataId, group, tenant, lastModified);
-            this.target = target;
-            this.isBeta = isBeta;
-            try {
-                dataId = URLEncoder.encode(dataId, Constants.ENCODE);
-                group = URLEncoder.encode(group, Constants.ENCODE);
-            } catch (UnsupportedEncodingException e) {
-                LOGGER.error("URLEncoder encode error", e);
-            }
-            if (StringUtils.isBlank(tenant)) {
-                this.url = MessageFormat.format(URL_PATTERN, target, EnvUtil.getContextPath(), dataId, group);
-            } else {
-                this.url = MessageFormat
-                        .format(URL_PATTERN_TENANT, target, EnvUtil.getContextPath(), dataId, group, tenant);
-            }
-            if (StringUtils.isNotEmpty(tag)) {
-                url = url + "&tag=" + tag;
-            }
-            failCount = 0;
-            // this.executor = executor;
-        }
-        
-        @Override
-        public void setFailCount(int count) {
-            this.failCount = count;
-        }
-        
-        @Override
-        public int getFailCount() {
-            return failCount;
-        }
-        
-        public String getTargetIP() {
-            return target;
-        }
-        
-    }
-    
-    /**
-     * get delayTime and also set failCount to task; The failure time index increases, so as not to retry invalid tasks
-     * in the offline scene, which affects the normal synchronization.
-     *
-     * @param task notify task
-     * @return delay
-     */
-    private static int getDelayTime(NotifyTask task) {
-        int failCount = task.getFailCount();
-        int delay = MIN_RETRY_INTERVAL + failCount * failCount * INCREASE_STEPS;
-        if (failCount <= MAX_COUNT) {
-            task.setFailCount(failCount + 1);
-        }
-        return delay;
-    }
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(AsyncNotifyService.class);
+
+	private final NacosAsyncRestTemplate nacosAsyncRestTemplate = HttpClientManager.getNacosAsyncRestTemplate();
+
+	private static final int MIN_RETRY_INTERVAL = 500;
+
+	private static final int INCREASE_STEPS = 1000;
+
+	private static final int MAX_COUNT = 6;
+
+	@Autowired
+	private DumpService dumpService;
+
+	@Autowired
+	private ConfigClusterRpcClientProxy configClusterRpcClientProxy;
+
+	private ServerMemberManager memberManager;
+
+	@Autowired
+	public AsyncNotifyService(ServerMemberManager memberManager) {
+		this.memberManager = memberManager;
+
+		// Register ConfigDataChangeEvent to NotifyCenter.
+		// 注册ConfigDataChangeEvent到NotifyCenter
+		NotifyCenter.registerToPublisher(ConfigDataChangeEvent.class, NotifyCenter.ringBufferSize);
+
+		// Register A Subscriber to subscribe ConfigDataChangeEvent.
+		NotifyCenter.registerSubscriber(new Subscriber() {
+//        	我们重点关注onEvent()具体的事件处理逻辑：
+//
+//        	1、获取所有的Nacos服务节点（包括当前客户端）
+//        	2、创建一个队列，将相关配置的其他服务节点都存放进来
+//        	3、通过线程池执行异步通知
+
+			@Override
+			public void onEvent(Event event) {
+				// Generate ConfigDataChangeEvent concurrently
+				if (event instanceof ConfigDataChangeEvent) {
+					ConfigDataChangeEvent evt = (ConfigDataChangeEvent) event;
+					long dumpTs = evt.lastModifiedTs;
+					String dataId = evt.dataId;
+					String group = evt.group;
+					String tenant = evt.tenant;
+					String tag = evt.tag;
+					Collection<Member> ipList = memberManager.allMembers();
+
+					// In fact, any type of queue here can be
+					Queue<NotifySingleTask> httpQueue = new LinkedList<NotifySingleTask>();
+					Queue<NotifySingleRpcTask> rpcQueue = new LinkedList<NotifySingleRpcTask>();
+
+					for (Member member : ipList) {
+						if (!MemberUtil.isSupportedLongCon(member)) {
+							httpQueue.add(new NotifySingleTask(dataId, group, tenant, tag, dumpTs, member.getAddress(),
+									evt.isBeta));
+						} else {
+							rpcQueue.add(
+									new NotifySingleRpcTask(dataId, group, tenant, tag, dumpTs, evt.isBeta, member));
+						}
+					}
+					if (!httpQueue.isEmpty()) {
+						ConfigExecutor.executeAsyncNotify(new AsyncTask(nacosAsyncRestTemplate, httpQueue));
+					} // 通过线程池执行异步通知
+						// AsyncRpcTask实现了runnable接口，关注其run方法
+					if (!rpcQueue.isEmpty()) {
+						ConfigExecutor.executeAsyncNotify(new AsyncRpcTask(rpcQueue));
+					}
+
+				}
+			}
+
+			@Override
+			public Class<? extends Event> subscribeType() {
+				return ConfigDataChangeEvent.class;
+			}
+		});
+	}
+
+	class AsyncTask implements Runnable {
+
+		private Queue<NotifySingleTask> queue;
+
+		private NacosAsyncRestTemplate restTemplate;
+
+		public AsyncTask(NacosAsyncRestTemplate restTemplate, Queue<NotifySingleTask> queue) {
+			this.restTemplate = restTemplate;
+			this.queue = queue;
+		}
+
+		@Override
+		public void run() {
+			executeAsyncInvoke();
+		}
+
+		private void executeAsyncInvoke() {
+			while (!queue.isEmpty()) {
+				NotifySingleTask task = queue.poll();
+				String targetIp = task.getTargetIP();
+				if (memberManager.hasMember(targetIp)) {
+					// start the health check and there are ips that are not monitored, put them
+					// directly in the notification queue, otherwise notify
+					boolean unHealthNeedDelay = memberManager.isUnHealth(targetIp);
+					if (unHealthNeedDelay) {
+						// target ip is unhealthy, then put it in the notification list
+						ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
+								task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_UNHEALTH,
+								0, task.target);
+						// get delay time and set fail count to the task
+						asyncTaskExecute(task);
+					} else {
+						Header header = Header.newInstance();
+						header.addParam(NotifyService.NOTIFY_HEADER_LAST_MODIFIED,
+								String.valueOf(task.getLastModified()));
+						header.addParam(NotifyService.NOTIFY_HEADER_OP_HANDLE_IP, InetUtils.getSelfIP());
+						if (task.isBeta) {
+							header.addParam("isBeta", "true");
+						}
+						AuthHeaderUtil.addIdentityToHeader(header);
+						restTemplate.get(task.url, header, Query.EMPTY, String.class, new AsyncNotifyCallBack(task));
+					}
+				}
+			}
+		}
+	}
+
+	class AsyncRpcTask implements Runnable {
+
+		private Queue<NotifySingleRpcTask> queue;
+
+		public AsyncRpcTask(Queue<NotifySingleRpcTask> queue) {
+			this.queue = queue;
+		}
+
+		@Override
+		public void run() {
+			while (!queue.isEmpty()) {
+				NotifySingleRpcTask task = queue.poll();
+				 // 构造配置变动集群同步请求
+				ConfigChangeClusterSyncRequest syncRequest = new ConfigChangeClusterSyncRequest();
+				syncRequest.setDataId(task.getDataId());
+				syncRequest.setGroup(task.getGroup());
+				syncRequest.setBeta(task.isBeta);
+				syncRequest.setLastModified(task.getLastModified());
+				syncRequest.setTag(task.tag);
+				syncRequest.setTenant(task.getTenant());
+				Member member = task.member;
+				if (memberManager.getSelf().equals(member)) {
+					if (syncRequest.isBeta()) {
+						dumpService.dump(syncRequest.getDataId(), syncRequest.getGroup(), syncRequest.getTenant(),
+								syncRequest.getLastModified(), NetUtils.localIP(), true);
+					} else {
+						dumpService.dump(syncRequest.getDataId(), syncRequest.getGroup(), syncRequest.getTenant(),
+								syncRequest.getTag(), syncRequest.getLastModified(), NetUtils.localIP());
+					}
+					continue;
+				}
+
+				if (memberManager.hasMember(member.getAddress())) {
+					// start the health check and there are ips that are not monitored, put them
+					// directly in the notification queue, otherwise notify
+					  // 启动健康检查，有IP未被监控，直接放入通知队列，否则通知
+					boolean unHealthNeedDelay = memberManager.isUnHealth(member.getAddress());
+					if (unHealthNeedDelay) {
+						// target ip is unhealthy, then put it in the notification list
+						ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
+								task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_UNHEALTH,
+								0, member.getAddress());
+						// get delay time and set fail count to the task
+						 // 异步任务执行
+	                    // 可延迟的处理，因为是不健康的节点，不知道什么时候能恢复
+						asyncTaskExecute(task);
+					} else {
+
+						if (!MemberUtil.isSupportedLongCon(member)) {
+							asyncTaskExecute(new NotifySingleTask(task.getDataId(), task.getGroup(), task.getTenant(),
+									task.tag, task.getLastModified(), member.getAddress(), task.isBeta));
+						} else {
+							try { // 发送grpc请求
+								configClusterRpcClientProxy.syncConfigChange(member, syncRequest,
+										new AsyncRpcNotifyCallBack(task));
+							} catch (Exception e) {
+								MetricsMonitor.getConfigNotifyException().increment();
+								asyncTaskExecute(task);
+							}
+						}
+
+					}
+				} else {
+					// No nothig if member has offline.
+				}
+
+			}
+		}
+	}
+
+	static class NotifySingleRpcTask extends NotifyTask {
+
+		private Member member;
+
+		private boolean isBeta;
+
+		private String tag;
+
+		public NotifySingleRpcTask(String dataId, String group, String tenant, String tag, long lastModified,
+				boolean isBeta, Member member) {
+			super(dataId, group, tenant, lastModified);
+			this.member = member;
+			this.isBeta = isBeta;
+			this.tag = tag;
+		}
+	}
+
+	private void asyncTaskExecute(NotifySingleTask task) {
+		int delay = getDelayTime(task);
+		Queue<NotifySingleTask> queue = new LinkedList<NotifySingleTask>();
+		queue.add(task);
+		AsyncTask asyncTask = new AsyncTask(nacosAsyncRestTemplate, queue);
+		ConfigExecutor.scheduleAsyncNotify(asyncTask, delay, TimeUnit.MILLISECONDS);
+	}
+
+	private void asyncTaskExecute(NotifySingleRpcTask task) {
+		int delay = getDelayTime(task);
+		Queue<NotifySingleRpcTask> queue = new LinkedList<NotifySingleRpcTask>();
+		queue.add(task);
+		AsyncRpcTask asyncTask = new AsyncRpcTask(queue);
+		ConfigExecutor.scheduleAsyncNotify(asyncTask, delay, TimeUnit.MILLISECONDS);
+	}
+
+	class AsyncNotifyCallBack implements Callback<String> {
+
+		private NotifySingleTask task;
+
+		public AsyncNotifyCallBack(NotifySingleTask task) {
+			this.task = task;
+		}
+
+		@Override
+		public void onReceive(RestResult<String> result) {
+
+			long delayed = System.currentTimeMillis() - task.getLastModified();
+
+			if (result.ok()) {
+				ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
+						task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_OK, delayed,
+						task.target);
+			} else {
+				LOGGER.error("[notify-error] target:{} dataId:{} group:{} ts:{} code:{}", task.target, task.getDataId(),
+						task.getGroup(), task.getLastModified(), result.getCode());
+				ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
+						task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_ERROR, delayed,
+						task.target);
+
+				// get delay time and set fail count to the task
+				asyncTaskExecute(task);
+
+				LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.target,
+						task.getDataId(), task.getGroup(), task.getLastModified());
+
+				MetricsMonitor.getConfigNotifyException().increment();
+			}
+		}
+
+		@Override
+		public void onError(Throwable ex) {
+
+			long delayed = System.currentTimeMillis() - task.getLastModified();
+			LOGGER.error("[notify-exception] target:{} dataId:{} group:{} ts:{} ex:{}", task.target, task.getDataId(),
+					task.getGroup(), task.getLastModified(), ex.toString());
+			ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
+					task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_EXCEPTION, delayed,
+					task.target);
+
+			// get delay time and set fail count to the task
+			asyncTaskExecute(task);
+			LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.target, task.getDataId(),
+					task.getGroup(), task.getLastModified());
+
+			MetricsMonitor.getConfigNotifyException().increment();
+		}
+
+		@Override
+		public void onCancel() {
+
+			LogUtil.NOTIFY_LOG.error("[notify-exception] target:{} dataId:{} group:{} ts:{} method:{}", task.target,
+					task.getDataId(), task.getGroup(), task.getLastModified(), "CANCELED");
+
+			// get delay time and set fail count to the task
+			asyncTaskExecute(task);
+			LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.target, task.getDataId(),
+					task.getGroup(), task.getLastModified());
+
+			MetricsMonitor.getConfigNotifyException().increment();
+		}
+	}
+
+	class AsyncRpcNotifyCallBack implements RequestCallBack<ConfigChangeClusterSyncResponse> {
+
+		private NotifySingleRpcTask task;
+
+		public AsyncRpcNotifyCallBack(NotifySingleRpcTask task) {
+			this.task = task;
+		}
+
+		@Override
+		public Executor getExecutor() {
+			return ConfigExecutor.getConfigSubServiceExecutor();
+		}
+
+		@Override
+		public long getTimeout() {
+			return 1000L;
+		}
+
+		@Override
+		public void onResponse(ConfigChangeClusterSyncResponse response) {
+			long delayed = System.currentTimeMillis() - task.getLastModified();
+
+			if (response.isSuccess()) {
+				ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
+						task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_OK, delayed,
+						task.member.getAddress());
+			} else {
+				LOGGER.error("[notify-error] target:{} dataId:{} group:{} ts:{} code:{}", task.member.getAddress(),
+						task.getDataId(), task.getGroup(), task.getLastModified(), response.getErrorCode());
+				ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
+						task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_ERROR, delayed,
+						task.member.getAddress());
+
+				// get delay time and set fail count to the task
+				asyncTaskExecute(task);
+
+				LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.member.getAddress(),
+						task.getDataId(), task.getGroup(), task.getLastModified());
+
+				MetricsMonitor.getConfigNotifyException().increment();
+			}
+		}
+
+		@Override
+		public void onException(Throwable ex) {
+			long delayed = System.currentTimeMillis() - task.getLastModified();
+			LOGGER.error("[notify-exception] target:{} dataId:{} group:{} ts:{} ex:{}", task.member.getAddress(),
+					task.getDataId(), task.getGroup(), task.getLastModified(), ex.toString());
+			ConfigTraceService.logNotifyEvent(task.getDataId(), task.getGroup(), task.getTenant(), null,
+					task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_EXCEPTION, delayed,
+					task.member.getAddress());
+
+			// get delay time and set fail count to the task
+			asyncTaskExecute(task);
+			LogUtil.NOTIFY_LOG.error("[notify-retry] target:{} dataId:{} group:{} ts:{}", task.member.getAddress(),
+					task.getDataId(), task.getGroup(), task.getLastModified());
+
+			MetricsMonitor.getConfigNotifyException().increment();
+		}
+	}
+
+	static class NotifySingleTask extends NotifyTask {
+
+		private String target;
+
+		public String url;
+
+		private boolean isBeta;
+
+		private static final String URL_PATTERN = "http://{0}{1}" + Constants.COMMUNICATION_CONTROLLER_PATH
+				+ "/dataChange" + "?dataId={2}&group={3}";
+
+		private static final String URL_PATTERN_TENANT = "http://{0}{1}" + Constants.COMMUNICATION_CONTROLLER_PATH
+				+ "/dataChange" + "?dataId={2}&group={3}&tenant={4}";
+
+		private int failCount;
+
+		public NotifySingleTask(String dataId, String group, String tenant, long lastModified, String target) {
+			this(dataId, group, tenant, lastModified, target, false);
+		}
+
+		public NotifySingleTask(String dataId, String group, String tenant, long lastModified, String target,
+				boolean isBeta) {
+			this(dataId, group, tenant, null, lastModified, target, isBeta);
+		}
+
+		public NotifySingleTask(String dataId, String group, String tenant, String tag, long lastModified,
+				String target, boolean isBeta) {
+			super(dataId, group, tenant, lastModified);
+			this.target = target;
+			this.isBeta = isBeta;
+			try {
+				dataId = URLEncoder.encode(dataId, Constants.ENCODE);
+				group = URLEncoder.encode(group, Constants.ENCODE);
+			} catch (UnsupportedEncodingException e) {
+				LOGGER.error("URLEncoder encode error", e);
+			}
+			if (StringUtils.isBlank(tenant)) {
+				this.url = MessageFormat.format(URL_PATTERN, target, EnvUtil.getContextPath(), dataId, group);
+			} else {
+				this.url = MessageFormat.format(URL_PATTERN_TENANT, target, EnvUtil.getContextPath(), dataId, group,
+						tenant);
+			}
+			if (StringUtils.isNotEmpty(tag)) {
+				url = url + "&tag=" + tag;
+			}
+			failCount = 0;
+			// this.executor = executor;
+		}
+
+		@Override
+		public void setFailCount(int count) {
+			this.failCount = count;
+		}
+
+		@Override
+		public int getFailCount() {
+			return failCount;
+		}
+
+		public String getTargetIP() {
+			return target;
+		}
+
+	}
+
+	/**
+	 * get delayTime and also set failCount to task; The failure time index
+	 * increases, so as not to retry invalid tasks in the offline scene, which
+	 * affects the normal synchronization.
+	 *
+	 * @param task notify task
+	 * @return delay
+	 */
+	private static int getDelayTime(NotifyTask task) {
+		int failCount = task.getFailCount();
+		int delay = MIN_RETRY_INTERVAL + failCount * failCount * INCREASE_STEPS;
+		if (failCount <= MAX_COUNT) {
+			task.setFailCount(failCount + 1);
+		}
+		return delay;
+	}
 }

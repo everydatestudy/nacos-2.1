@@ -121,6 +121,13 @@ public class ConfigController {
      *
      * @throws NacosException NacosException.
      */
+//    上述的代码主要完成了五件事情：
+//
+//    1、加密处理
+//    2、参数检查
+//    3、构造配置信息
+//    4、构造请求对象
+//    5、发布配置
     @PostMapping
     @Secured(action = ActionTypes.WRITE, signType = SignType.CONFIG)
     public Boolean publishConfig(HttpServletRequest request, @RequestParam(value = "dataId") String dataId,

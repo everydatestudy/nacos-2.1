@@ -116,7 +116,9 @@ public class ClientServiceIndexesManager extends SmartSubscriber {
 	private void handleClientDisconnect(ClientEvent.ClientDisconnectEvent event) {
 		Client client = event.getClient();
 		for (Service each : client.getAllSubscribeService()) {
-			// 移除订阅表连接
+			 // 从订阅者列表中移除所有服务对这个客户端的引用
+	        // private final ConcurrentMap<Service, Set<String>> subscriberIndexes = new ConcurrentHashMap<>();
+	        // key: Service      value: 客户端ID集合
 			removeSubscriberIndexes(each, client.getClientId());
 		}
 		for (Service each : client.getAllPublishedService()) {

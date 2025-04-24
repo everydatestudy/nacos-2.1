@@ -40,32 +40,44 @@ import java.util.Objects;
  * @author xiweng.yy
  */
 @Component
+//处理客户端提交的服务列表请求
 public class ServiceListRequestHandler extends RequestHandler<ServiceListRequest, ServiceListResponse> {
-    
-    @Override
-    @Secured(action = ActionTypes.READ)
-    public ServiceListResponse handle(ServiceListRequest request, RequestMeta meta) throws NacosException {
-        Collection<Service> serviceSet = ServiceManager.getInstance().getSingletons(request.getNamespace());
-        ServiceListResponse result = ServiceListResponse.buildSuccessResponse(0, new LinkedList<>());
-        if (!serviceSet.isEmpty()) {
-            Collection<String> serviceNameSet = selectServiceWithGroupName(serviceSet, request.getGroupName());
-            // TODO select service by selector
-            List<String> serviceNameList = ServiceUtil
-                    .pageServiceName(request.getPageNo(), request.getPageSize(), serviceNameSet);
-            result.setCount(serviceNameSet.size());
-            result.setServiceNames(serviceNameList);
-        }
-        return result;
-    }
-    
-    private Collection<String> selectServiceWithGroupName(Collection<Service> serviceSet, String groupName) {
-        Collection<String> result = new HashSet<>(serviceSet.size());
-        for (Service each : serviceSet) {
-            if (Objects.equals(groupName, each.getGroup())) {
-                result.add(each.getGroupedServiceName());
-            }
-        }
-        return result;
-    }
-    
+
+	@Override
+	@Secured(action = ActionTypes.READ)
+	public ServiceListResponse handle(ServiceListRequest request, RequestMeta meta) throws NacosException {
+
+		/**
+		 * 获取指定命令空间下的所有服务，在ServiceManager中存在一个map保存着每个命名空间中的所有服务。
+		 * ConcurrentHashMap<String, Set<Service>> namespaceSingletonMaps = new
+		 * ConcurrentHashMap<>(1 << 2) key: namespaceId value: Set<Service>
+		 * 注册实例的时候，就往这个map写入了数据
+		 * ServiceManager.getInstance().getSingletons(request.getNamespace())相当于执行：
+		 * namespaceSingletonMaps.getOrDefault(namespace, new HashSet<>(1))
+		 */
+		// ServiceManager.getInstance()通过单例返回一个ServiceManager对象
+		Collection<Service> serviceSet = ServiceManager.getInstance().getSingletons(request.getNamespace());
+		ServiceListResponse result = ServiceListResponse.buildSuccessResponse(0, new LinkedList<>());
+		if (!serviceSet.isEmpty()) {
+			 // 过滤指定分组的Service，添加groupServiceName，格式如：groupA@@serviceA
+			Collection<String> serviceNameSet = selectServiceWithGroupName(serviceSet, request.getGroupName());
+			// TODO select service by selector
+			List<String> serviceNameList = ServiceUtil.pageServiceName(request.getPageNo(), request.getPageSize(),
+					serviceNameSet);
+			result.setCount(serviceNameSet.size());
+			result.setServiceNames(serviceNameList);
+		}
+		return result;
+	}
+
+	private Collection<String> selectServiceWithGroupName(Collection<Service> serviceSet, String groupName) {
+		Collection<String> result = new HashSet<>(serviceSet.size());
+		for (Service each : serviceSet) {
+			if (Objects.equals(groupName, each.getGroup())) {
+				result.add(each.getGroupedServiceName());
+			}
+		}
+		return result;
+	}
+
 }

@@ -46,177 +46,182 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
  * @author xiweng.yy
  */
 public class ServiceInfoUpdateService implements Closeable {
-    
-    private static final long DEFAULT_DELAY = 1000L;
-    
-    private static final int DEFAULT_UPDATE_CACHE_TIME_MULTIPLE = 6;
-    
-    private final Map<String, ScheduledFuture<?>> futureMap = new HashMap<String, ScheduledFuture<?>>();
-    
-    private final ServiceInfoHolder serviceInfoHolder;
-    
-    private final ScheduledExecutorService executor;
-    
-    private final NamingClientProxy namingClientProxy;
-    
-    private final InstancesChangeNotifier changeNotifier;
-    
-    public ServiceInfoUpdateService(Properties properties, ServiceInfoHolder serviceInfoHolder,
-            NamingClientProxy namingClientProxy, InstancesChangeNotifier changeNotifier) {
-        this.executor = new ScheduledThreadPoolExecutor(initPollingThreadCount(properties),
-                new NameThreadFactory("com.alibaba.nacos.client.naming.updater"));
-        this.serviceInfoHolder = serviceInfoHolder;
-        this.namingClientProxy = namingClientProxy;
-        this.changeNotifier = changeNotifier;
-    }
-    
-    private int initPollingThreadCount(Properties properties) {
-        if (properties == null) {
-            return UtilAndComs.DEFAULT_POLLING_THREAD_COUNT;
-        }
-        return ConvertUtils.toInt(properties.getProperty(PropertyKeyConst.NAMING_POLLING_THREAD_COUNT),
-                UtilAndComs.DEFAULT_POLLING_THREAD_COUNT);
-    }
-    
-    /**
-     * Schedule update if absent.
-     *
-     * @param serviceName service name
-     * @param groupName   group name
-     * @param clusters    clusters
-     */
-    public void scheduleUpdateIfAbsent(String serviceName, String groupName, String clusters) {
-        String serviceKey = ServiceInfo.getKey(NamingUtils.getGroupedName(serviceName, groupName), clusters);
-        if (futureMap.get(serviceKey) != null) {
-            return;
-        }
-        synchronized (futureMap) {
-            if (futureMap.get(serviceKey) != null) {
-                return;
-            }
-            // 增加一个定时任务这里updateTask，会定期拉取任务更新缓存
-            ScheduledFuture<?> future = addTask(new UpdateTask(serviceName, groupName, clusters));
-            futureMap.put(serviceKey, future);
-        }
-    }
-    
-    private synchronized ScheduledFuture<?> addTask(UpdateTask task) {
-        return executor.schedule(task, DEFAULT_DELAY, TimeUnit.MILLISECONDS);
-    }
-    
-    /**
-     * Stop to schedule update if contain task.
-     *
-     * @param serviceName service name
-     * @param groupName   group name
-     * @param clusters    clusters
-     */
-    public void stopUpdateIfContain(String serviceName, String groupName, String clusters) {
-        String serviceKey = ServiceInfo.getKey(NamingUtils.getGroupedName(serviceName, groupName), clusters);
-        if (!futureMap.containsKey(serviceKey)) {
-            return;
-        }
-        synchronized (futureMap) {
-            if (!futureMap.containsKey(serviceKey)) {
-                return;
-            }
-            futureMap.remove(serviceKey);
-        }
-    }
-    
-    @Override
-    public void shutdown() throws NacosException {
-        String className = this.getClass().getName();
-        NAMING_LOGGER.info("{} do shutdown begin", className);
-        ThreadUtils.shutdownThreadPool(executor, NAMING_LOGGER);
-        NAMING_LOGGER.info("{} do shutdown stop", className);
-    }
-    
-    public class UpdateTask implements Runnable {
-        
-        long lastRefTime = Long.MAX_VALUE;
-        
-        private boolean isCancel;
-        
-        private final String serviceName;
-        
-        private final String groupName;
-        
-        private final String clusters;
-        
-        private final String groupedServiceName;
-        
-        private final String serviceKey;
-        
-        /**
-         * the fail situation. 1:can't connect to server 2:serviceInfo's hosts is empty
-         */
-        private int failCount = 0;
-        
-        public UpdateTask(String serviceName, String groupName, String clusters) {
-            this.serviceName = serviceName;
-            this.groupName = groupName;
-            this.clusters = clusters;
-            this.groupedServiceName = NamingUtils.getGroupedName(serviceName, groupName);
-            this.serviceKey = ServiceInfo.getKey(groupedServiceName, clusters);
-        }
-        
-        @Override
-        public void run() {
-            long delayTime = DEFAULT_DELAY;
-            
-            try {
-                if (!changeNotifier.isSubscribed(groupName, serviceName, clusters) && !futureMap.containsKey(
-                        serviceKey)) {
-                    NAMING_LOGGER.info("update task is stopped, service:{}, clusters:{}", groupedServiceName, clusters);
-                    isCancel = true;
-                    return;
-                }
-                
-                ServiceInfo serviceObj = serviceInfoHolder.getServiceInfoMap().get(serviceKey);
-                if (serviceObj == null) {
-                    // 调用grpc查询我们这服务下的实例集合
-                    serviceObj = namingClientProxy.queryInstancesOfService(serviceName, groupName, clusters, 0, false);
-                    // 更新缓存
-                    serviceInfoHolder.processServiceInfo(serviceObj);
-                    lastRefTime = serviceObj.getLastRefTime();
-                    return;
-                }
-                
-                if (serviceObj.getLastRefTime() <= lastRefTime) {
-                    serviceObj = namingClientProxy.queryInstancesOfService(serviceName, groupName, clusters, 0, false);
-                    serviceInfoHolder.processServiceInfo(serviceObj);
-                }
-                lastRefTime = serviceObj.getLastRefTime();
-                if (CollectionUtils.isEmpty(serviceObj.getHosts())) {
-                    incFailCount();
-                    return;
-                }
-                // TODO multiple time can be configured.
-                delayTime = serviceObj.getCacheMillis() * DEFAULT_UPDATE_CACHE_TIME_MULTIPLE;
-                resetFailCount();
-            } catch (Throwable e) {
-                incFailCount();
-                NAMING_LOGGER.warn("[NA] failed to update serviceName: {}", groupedServiceName, e);
-            } finally {
-                if (!isCancel) {
-                    // 在没有失败情况下默认是1秒一次，如果有失败则左移动，最多到60秒一次
-                    executor.schedule(this, Math.min(delayTime << failCount, DEFAULT_DELAY * 60),
-                            TimeUnit.MILLISECONDS);
-                }
-            }
-        }
-        
-        private void incFailCount() {
-            int limit = 6;
-            if (failCount == limit) {
-                return;
-            }
-            failCount++;
-        }
-        
-        private void resetFailCount() {
-            failCount = 0;
-        }
-    }
+
+	private static final long DEFAULT_DELAY = 1000L;
+
+	private static final int DEFAULT_UPDATE_CACHE_TIME_MULTIPLE = 6;
+
+	private final Map<String, ScheduledFuture<?>> futureMap = new HashMap<String, ScheduledFuture<?>>();
+
+	private final ServiceInfoHolder serviceInfoHolder;
+
+	private final ScheduledExecutorService executor;
+
+	private final NamingClientProxy namingClientProxy;
+
+	private final InstancesChangeNotifier changeNotifier;
+
+	public ServiceInfoUpdateService(Properties properties, ServiceInfoHolder serviceInfoHolder,
+			NamingClientProxy namingClientProxy, InstancesChangeNotifier changeNotifier) {
+		this.executor = new ScheduledThreadPoolExecutor(initPollingThreadCount(properties),
+				new NameThreadFactory("com.alibaba.nacos.client.naming.updater"));
+		this.serviceInfoHolder = serviceInfoHolder;
+		this.namingClientProxy = namingClientProxy;
+		this.changeNotifier = changeNotifier;
+	}
+
+	private int initPollingThreadCount(Properties properties) {
+		if (properties == null) {
+			return UtilAndComs.DEFAULT_POLLING_THREAD_COUNT;
+		}
+		return ConvertUtils.toInt(properties.getProperty(PropertyKeyConst.NAMING_POLLING_THREAD_COUNT),
+				UtilAndComs.DEFAULT_POLLING_THREAD_COUNT);
+	}
+
+	/**
+	 * Schedule update if absent.
+	 *
+	 * @param serviceName service name
+	 * @param groupName   group name
+	 * @param clusters    clusters
+	 */
+	public void scheduleUpdateIfAbsent(String serviceName, String groupName, String clusters) {
+		String serviceKey = ServiceInfo.getKey(NamingUtils.getGroupedName(serviceName, groupName), clusters);
+		if (futureMap.get(serviceKey) != null) {
+			return;
+		}
+		synchronized (futureMap) {
+			if (futureMap.get(serviceKey) != null) {
+				return;
+			}
+			// 增加一个定时任务这里updateTask，会定期拉取任务更新缓存
+			// 往线程池中添加一个更新任务
+			// UpdateTask实现了Runnable接口，需要关注其run()方法
+			ScheduledFuture<?> future = addTask(new UpdateTask(serviceName, groupName, clusters));
+			futureMap.put(serviceKey, future);
+		}
+	}
+
+	private synchronized ScheduledFuture<?> addTask(UpdateTask task) {
+		return executor.schedule(task, DEFAULT_DELAY, TimeUnit.MILLISECONDS);
+	}
+
+	/**
+	 * Stop to schedule update if contain task.
+	 *
+	 * @param serviceName service name
+	 * @param groupName   group name
+	 * @param clusters    clusters
+	 */
+	public void stopUpdateIfContain(String serviceName, String groupName, String clusters) {
+		String serviceKey = ServiceInfo.getKey(NamingUtils.getGroupedName(serviceName, groupName), clusters);
+		if (!futureMap.containsKey(serviceKey)) {
+			return;
+		}
+		synchronized (futureMap) {
+			if (!futureMap.containsKey(serviceKey)) {
+				return;
+			}
+			futureMap.remove(serviceKey);
+		}
+	}
+
+	@Override
+	public void shutdown() throws NacosException {
+		String className = this.getClass().getName();
+		NAMING_LOGGER.info("{} do shutdown begin", className);
+		ThreadUtils.shutdownThreadPool(executor, NAMING_LOGGER);
+		NAMING_LOGGER.info("{} do shutdown stop", className);
+	}
+
+	public class UpdateTask implements Runnable {
+
+		long lastRefTime = Long.MAX_VALUE;
+
+		private boolean isCancel;
+
+		private final String serviceName;
+
+		private final String groupName;
+
+		private final String clusters;
+
+		private final String groupedServiceName;
+
+		private final String serviceKey;
+
+		/**
+		 * the fail situation. 1:can't connect to server 2:serviceInfo's hosts is empty
+		 */
+		private int failCount = 0;
+
+		public UpdateTask(String serviceName, String groupName, String clusters) {
+			this.serviceName = serviceName;
+			this.groupName = groupName;
+			this.clusters = clusters;
+			this.groupedServiceName = NamingUtils.getGroupedName(serviceName, groupName);
+			this.serviceKey = ServiceInfo.getKey(groupedServiceName, clusters);
+		}
+
+		@Override
+		public void run() {
+			long delayTime = DEFAULT_DELAY;
+
+			try {
+				if (!changeNotifier.isSubscribed(groupName, serviceName, clusters)
+						&& !futureMap.containsKey(serviceKey)) {
+					NAMING_LOGGER.info("update task is stopped, service:{}, clusters:{}", groupedServiceName, clusters);
+					isCancel = true;
+					return;
+				}
+
+				ServiceInfo serviceObj = serviceInfoHolder.getServiceInfoMap().get(serviceKey);
+				if (serviceObj == null) {
+					// 调用grpc查询我们这服务下的实例集合
+					serviceObj = namingClientProxy.queryInstancesOfService(serviceName, groupName, clusters, 0, false);
+					// 处理服务信息：获取老的服务信息，将新的服务信息重新存入客户端缓存中，
+					// 对比新的服务信息，如发生变更，则发布实例变更数据，并同步serviceInfo数据到本地文件
+					serviceInfoHolder.processServiceInfo(serviceObj);
+					lastRefTime = serviceObj.getLastRefTime();
+					return;
+				}
+
+				if (serviceObj.getLastRefTime() <= lastRefTime) {
+					serviceObj = namingClientProxy.queryInstancesOfService(serviceName, groupName, clusters, 0, false);
+					// 处理服务信息：获取老的服务信息，将新的服务信息重新存入客户端缓存中，
+					// 对比新的服务信息，如发生变更，则发布实例变更数据，并同步serviceInfo数据到本地文件
+					serviceInfoHolder.processServiceInfo(serviceObj);
+				}
+				lastRefTime = serviceObj.getLastRefTime();
+				if (CollectionUtils.isEmpty(serviceObj.getHosts())) {
+					incFailCount();
+					return;
+				}
+				// TODO multiple time can be configured.
+				delayTime = serviceObj.getCacheMillis() * DEFAULT_UPDATE_CACHE_TIME_MULTIPLE;
+				resetFailCount();
+			} catch (Throwable e) {
+				incFailCount();
+				NAMING_LOGGER.warn("[NA] failed to update serviceName: {}", groupedServiceName, e);
+			} finally {
+				if (!isCancel) {
+					// 在没有失败情况下默认是1秒一次，如果有失败则左移动，最多到60秒一次
+					executor.schedule(this, Math.min(delayTime << failCount, DEFAULT_DELAY * 60),
+							TimeUnit.MILLISECONDS);
+				}
+			}
+		}
+
+		private void incFailCount() {
+			int limit = 6;
+			if (failCount == limit) {
+				return;
+			}
+			failCount++;
+		}
+
+		private void resetFailCount() {
+			failCount = 0;
+		}
+	}
 }

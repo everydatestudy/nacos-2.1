@@ -30,38 +30,39 @@ import com.alibaba.nacos.core.distributed.distro.task.execute.DistroSyncDeleteTa
  * @author xiweng.yy
  */
 public class DistroDelayTaskProcessor implements NacosTaskProcessor {
-    
-    private final DistroTaskEngineHolder distroTaskEngineHolder;
-    
-    private final DistroComponentHolder distroComponentHolder;
-    
-    public DistroDelayTaskProcessor(DistroTaskEngineHolder distroTaskEngineHolder,
-            DistroComponentHolder distroComponentHolder) {
-        this.distroTaskEngineHolder = distroTaskEngineHolder;
-        this.distroComponentHolder = distroComponentHolder;
-    }
-    
-    @Override
-    public boolean process(NacosTask task) {
-        if (!(task instanceof DistroDelayTask)) {
-            return true;
-        }
-        DistroDelayTask distroDelayTask = (DistroDelayTask) task;
-        DistroKey distroKey = distroDelayTask.getDistroKey();
-        switch (distroDelayTask.getAction()) {
-            case DELETE:
-                // 这里才是真正的Runable线程任务为
-                DistroSyncDeleteTask syncDeleteTask = new DistroSyncDeleteTask(distroKey, distroComponentHolder);
-                distroTaskEngineHolder.getExecuteWorkersManager().addTask(distroKey, syncDeleteTask);
-                return true;
-            case CHANGE:
-            case ADD:
-                // 这里才是真正的Runable线程任务为
-                DistroSyncChangeTask syncChangeTask = new DistroSyncChangeTask(distroKey, distroComponentHolder);
-                distroTaskEngineHolder.getExecuteWorkersManager().addTask(distroKey, syncChangeTask);
-                return true;
-            default:
-                return false;
-        }
-    }
+
+	private final DistroTaskEngineHolder distroTaskEngineHolder;
+
+	private final DistroComponentHolder distroComponentHolder;
+
+	public DistroDelayTaskProcessor(DistroTaskEngineHolder distroTaskEngineHolder,
+			DistroComponentHolder distroComponentHolder) {
+		this.distroTaskEngineHolder = distroTaskEngineHolder;
+		this.distroComponentHolder = distroComponentHolder;
+	}
+
+	@Override
+	public boolean process(NacosTask task) {
+		if (!(task instanceof DistroDelayTask)) {
+			return true;
+		}
+		DistroDelayTask distroDelayTask = (DistroDelayTask) task;
+		DistroKey distroKey = distroDelayTask.getDistroKey();
+		switch (distroDelayTask.getAction()) {
+		case DELETE:
+			// 添加了DistroSyncDeleteTask执行任务，由 DistroExecuteTaskExecuteEngine 执行
+			DistroSyncDeleteTask syncDeleteTask = new DistroSyncDeleteTask(distroKey, distroComponentHolder);
+			distroTaskEngineHolder.getExecuteWorkersManager().addTask(distroKey, syncDeleteTask);
+			return true;
+		case CHANGE:
+		case ADD:
+			// 这里才是真正的Runable线程任务为
+			DistroSyncChangeTask syncChangeTask = new DistroSyncChangeTask(distroKey, distroComponentHolder);
+			// 往立即执行的任务引擎中加入DistroSyncChangeTask任务，DistroSyncChangeTask实现了runnable接口，关注其run方法
+			distroTaskEngineHolder.getExecuteWorkersManager().addTask(distroKey, syncChangeTask);
+			return true;
+		default:
+			return false;
+		}
+	}
 }
