@@ -29,7 +29,7 @@ import com.alibaba.nacos.core.utils.Loggers;
  * @author xiweng.yy
  */
 public class DistroSyncChangeTask extends AbstractDistroExecuteTask {
-    
+	// 此任务操作类型为变更
     private static final DataOperation OPERATION = DataOperation.CHANGE;
     
     public DistroSyncChangeTask(DistroKey distroKey, DistroComponentHolder distroComponentHolder) {
@@ -43,12 +43,14 @@ public class DistroSyncChangeTask extends AbstractDistroExecuteTask {
     
     @Override
     protected boolean doExecute() {
+    	// 获取同步的数据类型
         String type = getDistroKey().getResourceType();
         DistroData distroData = getDistroData(type);
         if (null == distroData) {
             Loggers.DISTRO.warn("[DISTRO] {} with null data to sync, skip", toString());
             return true;
         }
+		// 使用DistroTransportAgent同步数据
         return getDistroComponentHolder().findTransportAgent(type)
                 .syncData(distroData, getDistroKey().getTargetServer());
     }

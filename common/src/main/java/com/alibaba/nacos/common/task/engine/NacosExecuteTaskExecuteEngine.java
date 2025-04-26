@@ -32,7 +32,6 @@ import java.util.Collection;
 //NacosExecuteTaskExecuteEngine跟前面介绍的NacosDelayTaskExecuteEngine很类似，
 //都是继承于AbstractNacosTaskExecuteEngine，
 //只不过NacosDelayTaskExecuteEngine是带有延时功能，NacosExecuteTaskExecuteEngine是立即执行的任务引擎。
-
 public class NacosExecuteTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<AbstractExecuteTask> {
 	// 任务执行worker，在构造方法中进行创建和初始化
 	private final TaskExecuteWorker[] executeWorkers;
@@ -43,6 +42,7 @@ public class NacosExecuteTaskExecuteEngine extends AbstractNacosTaskExecuteEngin
 
 	public NacosExecuteTaskExecuteEngine(String name, Logger logger, int dispatchWorkerCount) {
 		super(logger);
+		// 创建一组任务执行者
 		executeWorkers = new TaskExecuteWorker[dispatchWorkerCount];
 		for (int mod = 0; mod < dispatchWorkerCount; ++mod) {
 			executeWorkers[mod] = new TaskExecuteWorker(name, mod, dispatchWorkerCount, getEngineLog());

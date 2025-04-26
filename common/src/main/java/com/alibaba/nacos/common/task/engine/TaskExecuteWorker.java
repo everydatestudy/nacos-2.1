@@ -33,6 +33,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * @author xiweng.yy
  */
+/**
+ * Nacos execute task execute worker.
+ * Nacos任务执行者，每个执行者在创建的时候会同时启动一个线程InnerWorker，持续从内部队列中获取需要处理的任务
+ * @author xiweng.yy
+ */
 public final class TaskExecuteWorker implements NacosTaskProcessor, Closeable {
     
     /**
@@ -109,8 +114,9 @@ public final class TaskExecuteWorker implements NacosTaskProcessor, Closeable {
         
         @Override
         public void run() {
+        	 // 若线程还未中断，则持续执行
             while (!closed.get()) {
-                try {
+                try { // 从队列获取任务
                     Runnable task = queue.take();
                     long begin = System.currentTimeMillis();
                     task.run();

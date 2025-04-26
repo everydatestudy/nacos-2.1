@@ -21,6 +21,7 @@ package com.alibaba.nacos.core.distributed.distro.component;
  *
  * @author xiweng.yy
  */
+//Distro回调接口，用于异步处理之后需要回调的场景
 public interface DistroCallback {
     
     /**

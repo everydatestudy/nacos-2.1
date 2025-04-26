@@ -32,54 +32,56 @@ import java.util.List;
  *
  * @author xiweng.yy
  */
+//定时验证任务，此任务在启动时延迟5秒，间隔5秒执行。主要用于为每个节点创建一个数据验证的执行任务DistroVerifyExecuteTask。它的数据处理维度是Member。
+//启动Distro协议的数据验证流程
 public class DistroVerifyTimedTask implements Runnable {
-    
-    private final ServerMemberManager serverMemberManager;
-    
-    private final DistroComponentHolder distroComponentHolder;
-    
-    private final DistroExecuteTaskExecuteEngine executeTaskExecuteEngine;
-    
-    public DistroVerifyTimedTask(ServerMemberManager serverMemberManager, DistroComponentHolder distroComponentHolder,
-            DistroExecuteTaskExecuteEngine executeTaskExecuteEngine) {
-        this.serverMemberManager = serverMemberManager;
-        this.distroComponentHolder = distroComponentHolder;
-        this.executeTaskExecuteEngine = executeTaskExecuteEngine;
-    }
-    
-    @Override
-    public void run() {
-        try {
-            List<Member> targetServer = serverMemberManager.allMembersWithoutSelf();
-            if (Loggers.DISTRO.isDebugEnabled()) {
-                Loggers.DISTRO.debug("server list is: {}", targetServer);
-            }
-            for (String each : distroComponentHolder.getDataStorageTypes()) {
-                verifyForDataStorage(each, targetServer);
-            }
-        } catch (Exception e) {
-            Loggers.DISTRO.error("[DISTRO-FAILED] verify task failed.", e);
-        }
-    }
-    
-    private void verifyForDataStorage(String type, List<Member> targetServer) {
-        DistroDataStorage dataStorage = distroComponentHolder.findDataStorage(type);
-        if (!dataStorage.isFinishInitial()) {
-            Loggers.DISTRO.warn("data storage {} has not finished initial step, do not send verify data",
-                    dataStorage.getClass().getSimpleName());
-            return;
-        }
-        List<DistroData> verifyData = dataStorage.getVerifyData();
-        if (null == verifyData || verifyData.isEmpty()) {
-            return;
-        }
-        for (Member member : targetServer) {
-            DistroTransportAgent agent = distroComponentHolder.findTransportAgent(type);
-            if (null == agent) {
-                continue;
-            }
-            executeTaskExecuteEngine.addTask(member.getAddress() + type,
-                    new DistroVerifyExecuteTask(agent, verifyData, member.getAddress(), type));
-        }
-    }
+
+	private final ServerMemberManager serverMemberManager;
+
+	private final DistroComponentHolder distroComponentHolder;
+
+	private final DistroExecuteTaskExecuteEngine executeTaskExecuteEngine;
+
+	public DistroVerifyTimedTask(ServerMemberManager serverMemberManager, DistroComponentHolder distroComponentHolder,
+			DistroExecuteTaskExecuteEngine executeTaskExecuteEngine) {
+		this.serverMemberManager = serverMemberManager;
+		this.distroComponentHolder = distroComponentHolder;
+		this.executeTaskExecuteEngine = executeTaskExecuteEngine;
+	}
+
+	@Override
+	public void run() {
+		try {
+			List<Member> targetServer = serverMemberManager.allMembersWithoutSelf();
+			if (Loggers.DISTRO.isDebugEnabled()) {
+				Loggers.DISTRO.debug("server list is: {}", targetServer);
+			}
+			for (String each : distroComponentHolder.getDataStorageTypes()) {
+				verifyForDataStorage(each, targetServer);
+			}
+		} catch (Exception e) {
+			Loggers.DISTRO.error("[DISTRO-FAILED] verify task failed.", e);
+		}
+	}
+
+	private void verifyForDataStorage(String type, List<Member> targetServer) {
+		DistroDataStorage dataStorage = distroComponentHolder.findDataStorage(type);
+		if (!dataStorage.isFinishInitial()) {
+			Loggers.DISTRO.warn("data storage {} has not finished initial step, do not send verify data",
+					dataStorage.getClass().getSimpleName());
+			return;
+		}
+		List<DistroData> verifyData = dataStorage.getVerifyData();
+		if (null == verifyData || verifyData.isEmpty()) {
+			return;
+		}
+		for (Member member : targetServer) {
+			DistroTransportAgent agent = distroComponentHolder.findTransportAgent(type);
+			if (null == agent) {
+				continue;
+			}
+			executeTaskExecuteEngine.addTask(member.getAddress() + type,
+					new DistroVerifyExecuteTask(agent, verifyData, member.getAddress(), type));
+		}
+	}
 }

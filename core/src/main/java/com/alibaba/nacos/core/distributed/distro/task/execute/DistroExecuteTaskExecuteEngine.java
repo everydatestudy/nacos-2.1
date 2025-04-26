@@ -24,6 +24,8 @@ import com.alibaba.nacos.core.utils.Loggers;
  *
  * @author xiweng.yy
  */
+//Distro协议负责执行任务的执行引擎
+
 public class DistroExecuteTaskExecuteEngine extends NacosExecuteTaskExecuteEngine {
     
     public DistroExecuteTaskExecuteEngine() {
