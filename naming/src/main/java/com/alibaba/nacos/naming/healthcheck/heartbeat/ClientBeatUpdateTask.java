@@ -27,19 +27,21 @@ import com.alibaba.nacos.naming.core.v2.pojo.InstancePublishInfo;
  * @author xiweng.yy
  */
 public class ClientBeatUpdateTask extends AbstractExecuteTask {
-    
-    private final IpPortBasedClient client;
-    
-    public ClientBeatUpdateTask(IpPortBasedClient client) {
-        this.client = client;
-    }
-    
-    @Override
-    public void run() {
-        long currentTime = System.currentTimeMillis();
-        for (InstancePublishInfo each : client.getAllInstancePublishInfo()) {
-            ((HealthCheckInstancePublishInfo) each).setLastHeartBeatTime(currentTime);
-        }
-        client.setLastUpdatedTime();
-    }
+
+	private final IpPortBasedClient client;
+
+	public ClientBeatUpdateTask(IpPortBasedClient client) {
+		this.client = client;
+	}
+
+	@Override
+	public void run() {
+		// 获取当前时间，更新Client和Client下的Instance的最新活跃时间
+		long currentTime = System.currentTimeMillis();
+		for (InstancePublishInfo each : client.getAllInstancePublishInfo()) {
+			((HealthCheckInstancePublishInfo) each).setLastHeartBeatTime(currentTime);
+		}
+		// 更新client的最新更新时间
+		client.setLastUpdatedTime();
+	}
 }

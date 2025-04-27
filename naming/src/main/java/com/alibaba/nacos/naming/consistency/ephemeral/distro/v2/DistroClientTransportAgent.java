@@ -84,7 +84,8 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
 		}
 		return false;
 	}
-	//向指定节点发送回同步数据（支持回调）
+
+	// 向指定节点发送回同步数据（支持回调）
 	@Override
 	public void syncData(DistroData data, String targetServer, DistroCallback callback) {
 		if (isNoExistTarget(targetServer)) {
@@ -102,11 +103,13 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
 
 	@Override
 	public boolean syncVerifyData(DistroData verifyData, String targetServer) {
+		// 若此节点不在当前节点缓存中，直接返回，因为可能下线、或者过期，不需要验证了
 		if (isNoExistTarget(targetServer)) {
 			return true;
 		}
 		// replace target server as self server so that can callback.
 		verifyData.getDistroKey().setTargetServer(memberManager.getSelf().getAddress());
+		// 构建请求对象
 		DistroDataRequest request = new DistroDataRequest(verifyData, DataOperation.VERIFY);
 		Member member = memberManager.find(targetServer);
 		if (checkTargetServerStatusUnhealthy(member)) {
@@ -124,6 +127,7 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
 
 	@Override
 	public void syncVerifyData(DistroData verifyData, String targetServer, DistroCallback callback) {
+		// 若此节点不在当前节点缓存中，直接返回，因为可能下线、或者过期，不需要验证了
 		if (isNoExistTarget(targetServer)) {
 			callback.onSuccess();
 			return;
@@ -131,8 +135,10 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
 		DistroDataRequest request = new DistroDataRequest(verifyData, DataOperation.VERIFY);
 		Member member = memberManager.find(targetServer);
 		try {
+			// 创建一个回调对象（Wrapper实现了RequestCallBack接口）
 			DistroVerifyCallbackWrapper wrapper = new DistroVerifyCallbackWrapper(targetServer,
 					verifyData.getDistroKey().getResourceKey(), callback, member);
+			// 使用集群Rpc请求对象发送异步任务
 			clusterRpcClientProxy.asyncRequest(member, request, wrapper);
 		} catch (NacosException nacosException) {
 			callback.onFailed(nacosException);
@@ -141,7 +147,9 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
 
 	@Override
 	public DistroData getData(DistroKey key, String targetServer) {
+		// 从节点管理器获取目标节点信息
 		Member member = memberManager.find(targetServer);
+		// 判断目标服务器是否健康
 		if (checkTargetServerStatusUnhealthy(member)) {
 			throw new DistroException(
 					String.format("[DISTRO] Cancel get snapshot caused by target server %s unhealthy", targetServer));

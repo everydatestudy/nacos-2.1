@@ -128,7 +128,9 @@ public class GrpcConnection extends Connection {
     
     @Override
     public void asyncRequest(Request request, final RequestCallBack requestCallBack) throws NacosException {
+    	// ① 转换为Grpc的请求载体对象
         Payload grpcRequest = GrpcUtils.convert(request);
+    	// 发送Grpc请求
         ListenableFuture<Payload> requestFuture = grpcFutureServiceStub.request(grpcRequest);
         
         //set callback .
@@ -141,6 +143,7 @@ public class GrpcConnection extends Connection {
                     if (response instanceof ErrorResponse) {
                         requestCallBack.onException(new NacosException(response.getErrorCode(), response.getMessage()));
                     } else {
+                    	// 若成功返回，触发回调的onResponse对象，由回调函数处理后续逻辑
                         requestCallBack.onResponse(response);
                     }
                 } else {
