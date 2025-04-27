@@ -35,70 +35,73 @@ import java.util.List;
  * @author xiweng.yy
  */
 public class DistroHttpAgent implements DistroTransportAgent {
-    
-    private final ServerMemberManager memberManager;
-    
-    public DistroHttpAgent(ServerMemberManager memberManager) {
-        this.memberManager = memberManager;
-    }
-    
-    @Override
-    public boolean supportCallbackTransport() {
-        return false;
-    }
-    
-    @Override
-    public boolean syncData(DistroData data, String targetServer) {
-        if (!memberManager.hasMember(targetServer)) {
-            return true;
-        }
-        byte[] dataContent = data.getContent();
-        return NamingProxy.syncData(dataContent, data.getDistroKey().getTargetServer());
-    }
-    
-    @Override
-    public void syncData(DistroData data, String targetServer, DistroCallback callback) {
-        throw new UnsupportedOperationException("Http distro agent do not support this method");
-    }
-    
-    @Override
-    public boolean syncVerifyData(DistroData verifyData, String targetServer) {
-        if (!memberManager.hasMember(targetServer)) {
-            return true;
-        }
-        NamingProxy.syncCheckSums(verifyData.getContent(), targetServer);
-        return true;
-    }
-    
-    @Override
-    public void syncVerifyData(DistroData verifyData, String targetServer, DistroCallback callback) {
-        throw new UnsupportedOperationException("Http distro agent do not support this method");
-    }
-    
-    @Override
-    public DistroData getData(DistroKey key, String targetServer) {
-        try {
-            List<String> toUpdateKeys = null;
-            if (key instanceof DistroHttpCombinedKey) {
-                toUpdateKeys = ((DistroHttpCombinedKey) key).getActualResourceTypes();
-            } else {
-                toUpdateKeys = new ArrayList<>(1);
-                toUpdateKeys.add(key.getResourceKey());
-            }
-            byte[] queriedData = NamingProxy.getData(toUpdateKeys, key.getTargetServer());
-            return new DistroData(key, queriedData);
-        } catch (Exception e) {
-            throw new DistroException(String.format("Get data from %s failed.", key.getTargetServer()), e);
-        }
-    }
-    
-    @Override
-    public DistroData getDatumSnapshot(String targetServer) {
-        try {
-            byte[] allDatum = NamingProxy.getAllData(targetServer);
-            return new DistroData(new DistroKey(KeyBuilder.RESOURCE_KEY_SNAPSHOT, KeyBuilder.INSTANCE_LIST_KEY_PREFIX), allDatum);
-        } catch (Exception e) {
-            throw new DistroException(String.format("Get snapshot from %s failed.", targetServer), e);
-        }
-    }
+
+	private final ServerMemberManager memberManager;
+
+	public DistroHttpAgent(ServerMemberManager memberManager) {
+		this.memberManager = memberManager;
+	}
+
+	@Override
+	public boolean supportCallbackTransport() {
+		return false;
+	}
+
+	@Override
+	public boolean syncData(DistroData data, String targetServer) {
+		if (!memberManager.hasMember(targetServer)) {
+			return true;
+		}
+		byte[] dataContent = data.getContent();
+		return NamingProxy.syncData(dataContent, data.getDistroKey().getTargetServer());
+	}
+
+	@Override
+	public void syncData(DistroData data, String targetServer, DistroCallback callback) {
+		throw new UnsupportedOperationException("Http distro agent do not support this method");
+	}
+
+	@Override
+	public boolean syncVerifyData(DistroData verifyData, String targetServer) {
+		// 若本机节点缓存中没有targetServer，说明此节点已不具备服务能力，也没有报告的必要。
+		if (!memberManager.hasMember(targetServer)) {
+			return true;
+		}
+		// 发送checksum请求
+		NamingProxy.syncCheckSums(verifyData.getContent(), targetServer);
+		return true;
+	}
+
+	@Override
+	public void syncVerifyData(DistroData verifyData, String targetServer, DistroCallback callback) {
+		throw new UnsupportedOperationException("Http distro agent do not support this method");
+	}
+
+	@Override
+	public DistroData getData(DistroKey key, String targetServer) {
+		try {
+			List<String> toUpdateKeys = null;
+			if (key instanceof DistroHttpCombinedKey) {
+				toUpdateKeys = ((DistroHttpCombinedKey) key).getActualResourceTypes();
+			} else {
+				toUpdateKeys = new ArrayList<>(1);
+				toUpdateKeys.add(key.getResourceKey());
+			}
+			byte[] queriedData = NamingProxy.getData(toUpdateKeys, key.getTargetServer());
+			return new DistroData(key, queriedData);
+		} catch (Exception e) {
+			throw new DistroException(String.format("Get data from %s failed.", key.getTargetServer()), e);
+		}
+	}
+
+	@Override
+	public DistroData getDatumSnapshot(String targetServer) {
+		try {
+			byte[] allDatum = NamingProxy.getAllData(targetServer);
+			return new DistroData(new DistroKey(KeyBuilder.RESOURCE_KEY_SNAPSHOT, KeyBuilder.INSTANCE_LIST_KEY_PREFIX),
+					allDatum);
+		} catch (Exception e) {
+			throw new DistroException(String.format("Get snapshot from %s failed.", targetServer), e);
+		}
+	}
 }

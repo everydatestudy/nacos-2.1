@@ -84,10 +84,12 @@ public class DistroVerifyExecuteTask extends AbstractExecuteTask {
 		// 回调实际上，也没啥。。。基本算是空对象
 		transportAgent.syncVerifyData(data, targetServer, new DistroVerifyCallback());
 	}
-	 /**
-     * 不支持回调的同步数据验证
-     * @param data
-     */
+
+	/**
+	 * 不支持回调的同步数据验证
+	 * 
+	 * @param data
+	 */
 	private void doSyncVerifyData(DistroData data) {
 		transportAgent.syncVerifyData(data, targetServer);
 	}

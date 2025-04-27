@@ -23,35 +23,39 @@ import java.io.Serializable;
  *
  * @author xiweng.yy
  */
+//前面我们知道Distro协议数据交互的对象是DistroData。
+//其内部的content保存的数据才是真正的需要验证的对象。
+//在v1版本中的DistroData.content保存的是序列化后的Map<String, String>, key为serviceName，
+//value为Service下的所有Instance的checksum值；v2版本中的DistroData.content保存的是序列化后的DistroClientVerifyInfo
 public class DistroClientVerifyInfo implements Serializable {
-    
-    private static final long serialVersionUID = 2223964944788737629L;
-    
-    private String clientId;
-    
-    private long revision;
-    
-    public DistroClientVerifyInfo() {
-    }
-    
-    public DistroClientVerifyInfo(String clientId, long revision) {
-        this.clientId = clientId;
-        this.revision = revision;
-    }
-    
-    public String getClientId() {
-        return clientId;
-    }
-    
-    public void setClientId(String clientId) {
-        this.clientId = clientId;
-    }
-    
-    public long getRevision() {
-        return revision;
-    }
-    
-    public void setRevision(long revision) {
-        this.revision = revision;
-    }
+
+	private static final long serialVersionUID = 2223964944788737629L;
+
+	private String clientId;
+
+	private long revision;
+
+	public DistroClientVerifyInfo() {
+	}
+
+	public DistroClientVerifyInfo(String clientId, long revision) {
+		this.clientId = clientId;
+		this.revision = revision;
+	}
+
+	public String getClientId() {
+		return clientId;
+	}
+
+	public void setClientId(String clientId) {
+		this.clientId = clientId;
+	}
+
+	public long getRevision() {
+		return revision;
+	}
+
+	public void setRevision(long revision) {
+		this.revision = revision;
+	}
 }

@@ -100,7 +100,9 @@ public class DistroController {
      */
     @PutMapping("/checksum")
     public ResponseEntity syncChecksum(@RequestParam String source, @RequestBody Map<String, String> dataMap) {
+    	// 构建验证数据对象
         DistroHttpData distroHttpData = new DistroHttpData(createDistroKey(source), dataMap);
+     // 开始验证
         distroProtocol.onVerify(distroHttpData, source);
         return ResponseEntity.ok("ok");
     }

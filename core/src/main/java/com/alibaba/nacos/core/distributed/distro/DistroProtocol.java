@@ -43,10 +43,19 @@ import org.springframework.stereotype.Component;
 @Component
 public class DistroProtocol {
 
+	/**
+	 * 节点管理器
+	 */
 	private final ServerMemberManager memberManager;
 
+	/**
+	 * Distro组件持有者
+	 */
 	private final DistroComponentHolder distroComponentHolder;
 
+	/**
+	 * Distro任务引擎持有者
+	 */
 	private final DistroTaskEngineHolder distroTaskEngineHolder;
 
 	private volatile boolean isInitialized = false;
@@ -56,6 +65,7 @@ public class DistroProtocol {
 		this.memberManager = memberManager;
 		this.distroComponentHolder = distroComponentHolder;
 		this.distroTaskEngineHolder = distroTaskEngineHolder;
+		// 启动Distro协议
 		startDistroTask();
 	}
 
@@ -64,10 +74,15 @@ public class DistroProtocol {
 			isInitialized = true;
 			return;
 		}
+		// 开启节点Client状态报告任务
 		startVerifyTask();
+		// 启动数据同步任务
 		startLoadTask();
 	}
 
+	/**
+	 * 从其他节点获取数据到当前节点
+	 */
 	private void startLoadTask() {
 		DistroCallback loadCallback = new DistroCallback() {
 			@Override
@@ -80,6 +95,7 @@ public class DistroProtocol {
 				isInitialized = false;
 			}
 		};
+		// 验证功能从startVerifyTask()方法开始启动，此处它构建了一个名为DistroVerifyTimedTask的定时任务，延迟5秒开始，间隔5秒轮询。
 		GlobalExecutor.submitLoadDataTask(
 				new DistroLoadDataTask(memberManager, distroComponentHolder, DistroConfig.getInstance(), loadCallback));
 	}
@@ -101,6 +117,7 @@ public class DistroProtocol {
 	 * @param distroKey distro key of sync data
 	 * @param action    the action of data operation
 	 */
+	// 按配置的延迟开始同步
 	public void sync(DistroKey distroKey, DataOperation action) {
 		// 配置同步延迟的时间：默认为1s
 		sync(distroKey, action, DistroConfig.getInstance().getSyncDelayMillis());
@@ -113,6 +130,7 @@ public class DistroProtocol {
 	 * @param action    the action of data operation
 	 * @param delay     delay time for sync
 	 */
+	// 开始将数据同步到其他节点
 	public void sync(DistroKey distroKey, DataOperation action, long delay) {
 		// 拿到集群中除了自己的其他节点
 		for (Member each : memberManager.allMembersWithoutSelf()) {
@@ -169,6 +187,7 @@ public class DistroProtocol {
 	 * @param distroData Received data
 	 * @return true if handle receive data successfully, otherwise false
 	 */
+	// 接收到同步数据，并查找处理器进行处理
 	public boolean onReceive(DistroData distroData) {
 		Loggers.DISTRO.info("[DISTRO] Receive distro data type: {}, key: {}", distroData.getType(),
 				distroData.getDistroKey());
@@ -189,6 +208,7 @@ public class DistroProtocol {
 	 *                      server
 	 * @return true if verify data successfully, otherwise false
 	 */
+	// 根据不同类型获取不同的数据处理器
 	public boolean onVerify(DistroData distroData, String sourceAddress) {
 		if (Loggers.DISTRO.isDebugEnabled()) {
 			Loggers.DISTRO.debug("[DISTRO] Receive verify data type: {}, key: {}", distroData.getType(),
@@ -225,6 +245,7 @@ public class DistroProtocol {
 	 * @param type datum type
 	 * @return all datum snapshot
 	 */
+	// 查询所有快照数据
 	public DistroData onSnapshot(String type) {
 		DistroDataStorage distroDataStorage = distroComponentHolder.findDataStorage(type);
 		if (null == distroDataStorage) {

@@ -73,7 +73,7 @@ public class NamingProxy {
             headers.put(HttpHeaderConsts.CLIENT_VERSION_HEADER, VersionUtils.version);
             headers.put(HttpHeaderConsts.USER_AGENT_HEADER, UtilsAndCommons.SERVER_VERSION);
             headers.put(HttpHeaderConsts.CONNECTION, "Keep-Alive");
-            
+         // 请求示例：http://10.53.126.16:8848/nacos/v1/ns/distro/checksum?source=10.53.155.22:8848
             HttpClient.asyncHttpPutLarge(
                     HTTP_PREFIX + server + EnvUtil.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT
                             + TIMESTAMP_SYNC_URL + "?source=" + NetUtils.localServer(), headers, checksums,

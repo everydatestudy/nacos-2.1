@@ -54,6 +54,7 @@ public abstract class AbstractDistroExecuteTask extends AbstractExecuteTask {
     @Override
     public void run() {
         String type = getDistroKey().getResourceType();
+    	// 根据类型获取数据传输代理
         DistroTransportAgent transportAgent = distroComponentHolder.findTransportAgent(type);
         if (null == transportAgent) {
             Loggers.DISTRO.warn("No found transport agent for type [{}]", type);
@@ -104,6 +105,7 @@ public abstract class AbstractDistroExecuteTask extends AbstractExecuteTask {
     /**
      * Handle failed task.
      */
+    // 处理失败的任务
     protected void handleFailedTask() {
         String type = getDistroKey().getResourceType();
         DistroFailedTaskHandler failedTaskHandler = distroComponentHolder.findFailedTaskHandler(type);

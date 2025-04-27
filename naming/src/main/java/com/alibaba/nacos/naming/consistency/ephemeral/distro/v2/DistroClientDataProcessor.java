@@ -228,7 +228,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
 		}
 		return true;
 	}
-
+	// 从Client管理器中获取指定Client
 	@Override
 	public DistroData getDistroData(DistroKey distroKey) {
 		Client client = clientManager.getClient(distroKey.getResourceKey());
@@ -241,6 +241,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
 
 	@Override
 	public DistroData getDatumSnapshot() {
+		// 从Client管理器中获取所有Client
 		List<ClientSyncData> datum = new LinkedList<>();
 		for (String each : clientManager.allClientId()) {
 			Client client = clientManager.getClient(each);
