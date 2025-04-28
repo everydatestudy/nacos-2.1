@@ -118,7 +118,8 @@ public class NamingSubscriberServiceV2Impl extends SmartSubscriber implements Na
 	@Override
 	public void onEvent(Event event) {
 		/**
-		 * 1.服务变更事件，推送这个变更给所有的订阅者 2.如果服务被某个客户端订阅了，那么只会推送这个变更给这个客户端
+		 * 1.服务变更事件，推送这个变更给所有的订阅者
+		 * 2.如果服务被某个客户端订阅了，那么只会推送这个变更给这个客户端
 		 */
 		if (!upgradeJudgement.isUseGrpcFeatures()) {
 			return;

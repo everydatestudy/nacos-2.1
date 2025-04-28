@@ -65,8 +65,8 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
 		tasks = new ConcurrentHashMap<>(initCapacity);
 		// 创建定时任务的线程池
 		processingExecutor = ExecutorFactory.newSingleScheduledExecutorService(new NameThreadFactory(name));
-		 // 在指定的初始延迟时间(100毫秒)后开始执行任务，并按固定的时间间隔周期性(100毫秒)地执行任务。
-        // 默认延时100毫秒执行ProcessRunnable，然后每隔100毫秒周期性执行ProcessRunnable
+		// 在指定的初始延迟时间(100毫秒)后开始执行任务，并按固定的时间间隔周期性(100毫秒)地执行任务。
+		// 默认延时100毫秒执行ProcessRunnable，然后每隔100毫秒周期性执行ProcessRunnable
 		processingExecutor.scheduleWithFixedDelay(new ProcessRunnable(), processInterval, processInterval,
 				TimeUnit.MILLISECONDS);
 	}
@@ -123,6 +123,16 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
 		tasks.clear();
 		processingExecutor.shutdown();
 	}
+	// 代码解释完了，解释下整体的流程
+	//
+	// 通过delayTaskEngine添加到tasks(这是一个ConcurrentHashMap)中
+	// delayTaskEngine有个单线程的延迟任务线程池processingExecutor在不断的获取任务
+	// 因为delayTaskEngine是一个PushDelayTaskExecuteEngine，
+	// 在构造方法中只添加了默认的处理类PushDelayTaskProcessor，所以都是由PushDelayTaskProcessor中的process(NacosTask
+	// task)执行。
+	// 这个process(NacosTask task)又调用了
+	// NamingExecuteTaskDispatcher.getInstance() .dispatchAndExecuteTask(service,
+	// new PushExecuteTask(service, executeEngine, pushDelayTask))。
 
 	@Override
 	public void addTask(Object key, AbstractDelayTask newTask) {
@@ -131,7 +141,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
 			// 根据service拿取对应任务，刚开始一定不存在
 			AbstractDelayTask existTask = tasks.get(key);
 			if (null != existTask) {
-				 // 服务存在的话，则需要合并任务，其实就是合并多个任务，一起执行
+				// 服务存在的话，则需要合并任务，其实就是合并多个任务，一起执行
 				newTask.merge(existTask);
 			}
 			// 将任务放到tasks里面，一定有地方处理他
@@ -153,9 +163,9 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
 			if (null == task) {
 				continue;
 			}
-			 // taskKey示例值: Service{namespace='public', group='DEFAULT_GROUP', name='discovery-provider', ephemeral=true, revision=0}
-            // 找到处理类
- 
+			// taskKey示例值: Service{namespace='public', group='DEFAULT_GROUP',
+			// name='discovery-provider', ephemeral=true, revision=0}
+			// 找到处理类
 			NacosTaskProcessor processor = getProcessor(taskKey);
 			if (null == processor) {
 				getEngineLog().error("processor not found for task, so discarded. " + task);
@@ -165,7 +175,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
 				// ReAdd task if process failed
 				// key:处理task任务
 				if (!processor.process(task)) {
-					  // 处理失败的话，重新入队（即重试）
+					// 处理失败的话，重新入队（即重试）
 					retryFailedTask(taskKey, task);
 				}
 			} catch (Throwable e) {

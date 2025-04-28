@@ -139,7 +139,16 @@ public class NacosConfigService implements ConfigService {
     public void removeListener(String dataId, String group, Listener listener) {
         worker.removeTenantListener(dataId, group, listener);
     }
-    
+//    获取配置信息经历了三个步骤：
+//
+//    从本地失败转移的文件夹中获取配置，这个是手工添加的，程序不会自动处理，是针对一些特定情况下，比如服务挂了还需要修改本地的配置的情况。给了一次本地修改处理的方式，也算是预留了一个备案，防止一些极端情况。但是这个得了解其固定的目录和拉取的配置，再处理，用完了要及时删除，否则会一直拉取本地的文件，毕竟是优先处理这部分的逻辑
+//    去服务端拉取，这个就是正常逻辑，获取服务端存储的配置信息
+//    对于出现了比如超时的情况，在有本地快照的情况的，从本地快照拉取配置，不至于偶尔超时了就配置没了
+//
+//    作者：ruipost
+//    链接：https://juejin.cn/post/7212937418960683065
+//    来源：稀土掘金
+//    著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
     private String getConfigInner(String tenant, String dataId, String group, long timeoutMs) throws NacosException {
         group = blank2defaultGroup(group);
         ParamUtils.checkKeyParam(dataId, group);
@@ -150,6 +159,8 @@ public class NacosConfigService implements ConfigService {
         cr.setGroup(group);
         
         // use local config first
+        // 这里有个失败转移的配置。如果能读到失败转移的配置信息，则直接返回了。原因的话英文注释写的很清楚了
+        // 优先使用失败转移，设计的目的是当server挂后，又需要修改配置，就可以读本地目录
         String content = LocalConfigInfoProcessor.getFailover(worker.getAgentName(), dataId, group, tenant);
         if (content != null) {
             LOGGER.warn("[{}] [get-config] get failover ok, dataId={}, group={}, tenant={}, config={}",
@@ -163,7 +174,7 @@ public class NacosConfigService implements ConfigService {
             return content;
         }
         
-        try {
+        try {   // 通过客户端远程拉取配置信息
             ConfigResponse response = worker.getServerConfig(dataId, group, tenant, timeoutMs, false);
             cr.setContent(response.getContent());
             cr.setEncryptedDataKey(response.getEncryptedDataKey());

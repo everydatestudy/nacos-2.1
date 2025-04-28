@@ -33,6 +33,7 @@ import javax.annotation.PreDestroy;
 public abstract class BaseRpcServer {
     
     static {
+    	//把所有请求和响应的实体类加载到一个容器中，REGISTRY_REQUEST，使用的方式是Java的ServiceLoader
         PayloadRegistry.init();
     }
     

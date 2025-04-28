@@ -119,15 +119,6 @@ public class DefaultPublisher extends Thread implements EventPublisher {
 				ThreadUtils.sleep(1000L);
 				waitTimes--;
 			}
-
-//			for (;;) {
-//				if (shutdown) {
-//					break;
-//				}
-//				final Event event = queue.take();
-//				receiveEvent(event);
-//				UPDATER.compareAndSet(this, lastEventSequence, Math.max(lastEventSequence, event.sequence()));
-//			}
 			while (!shutdown) {
 				// 阻塞队列中如果没有事件，这里进行阻塞
 				final Event event = queue.take();

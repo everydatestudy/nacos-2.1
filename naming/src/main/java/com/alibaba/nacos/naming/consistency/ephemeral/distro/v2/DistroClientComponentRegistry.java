@@ -38,22 +38,16 @@ import javax.annotation.PostConstruct;
 public class DistroClientComponentRegistry {
 	// Nacos节点管理器
 	private final ServerMemberManager serverMemberManager;
-
 	// Distro协议对象
 	private final DistroProtocol distroProtocol;
-
 	// 一些Distro组件的集合
 	private final DistroComponentHolder componentHolder;
-
 	// 一些任务执行引擎的集合
 	private final DistroTaskEngineHolder taskEngineHolder;
-
 	// Nacos 客户端管理器
 	private final ClientManager clientManager;
-
 	// 集群rpc客户端代理对象
 	private final ClusterRpcClientProxy clusterRpcClientProxy;
-
 	// 版本升级判断
 	private final UpgradeJudgement upgradeJudgement;
 

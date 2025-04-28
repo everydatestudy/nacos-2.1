@@ -47,7 +47,8 @@ public class PushExecutorRpcImpl implements PushExecutor {
     
     @Override
     public void doPushWithCallback(String clientId, Subscriber subscriber, PushDataWrapper data, PushCallBack callBack) {
-        pushService.pushWithCallback(clientId, NotifySubscriberRequest.buildNotifySubscriberRequest(getServiceInfo(data, subscriber)),
+    	 // 构建一个NotifySubscriberRequest，通过grpc向客户端发送信息
+    	pushService.pushWithCallback(clientId, NotifySubscriberRequest.buildNotifySubscriberRequest(getServiceInfo(data, subscriber)),
                 callBack, GlobalExecutor.getCallbackExecutor());
     }
     

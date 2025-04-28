@@ -73,6 +73,7 @@ public class NotifyCenter {
 		// Internal ArrayBlockingQueue buffer size. For applications with high write
 		// throughput,
 		// this value needs to be increased appropriately. default value is 16384
+		// 默认的生产者的阻塞队列大小
 		String ringBufferSizeProperty = "nacos.core.notify.ring-buffer-size";
 		ringBufferSize = Integer.getInteger(ringBufferSizeProperty, 16384);
 

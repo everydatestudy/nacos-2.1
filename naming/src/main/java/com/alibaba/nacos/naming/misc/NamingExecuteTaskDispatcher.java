@@ -26,24 +26,25 @@ import com.alibaba.nacos.sys.env.EnvUtil;
  * @author xiweng.yy
  */
 public class NamingExecuteTaskDispatcher {
-    
-    private static final NamingExecuteTaskDispatcher INSTANCE = new NamingExecuteTaskDispatcher();
-    
-    private final NacosExecuteTaskExecuteEngine executeEngine;
-    
-    private NamingExecuteTaskDispatcher() {
-        executeEngine = new NacosExecuteTaskExecuteEngine(EnvUtil.FUNCTION_MODE_NAMING, Loggers.SRV_LOG);
-    }
-    
-    public static NamingExecuteTaskDispatcher getInstance() {
-        return INSTANCE;
-    }
-    
-    public void dispatchAndExecuteTask(Object dispatchTag, AbstractExecuteTask task) {
-        executeEngine.addTask(dispatchTag, task);
-    }
-    
-    public String workersStatus() {
-        return executeEngine.workersStatus();
-    }
+
+	private static final NamingExecuteTaskDispatcher INSTANCE = new NamingExecuteTaskDispatcher();
+
+	private final NacosExecuteTaskExecuteEngine executeEngine;
+
+	private NamingExecuteTaskDispatcher() {
+		// 构造方法初始化了一个NacosExecuteTaskExecuteEngine
+		executeEngine = new NacosExecuteTaskExecuteEngine(EnvUtil.FUNCTION_MODE_NAMING, Loggers.SRV_LOG);
+	}
+
+	public static NamingExecuteTaskDispatcher getInstance() {
+		return INSTANCE;
+	}
+
+	public void dispatchAndExecuteTask(Object dispatchTag, AbstractExecuteTask task) {
+		executeEngine.addTask(dispatchTag, task);
+	}
+
+	public String workersStatus() {
+		return executeEngine.workersStatus();
+	}
 }
