@@ -86,7 +86,7 @@ public class DistroHttpAgent implements DistroTransportAgent {
 			} else {
 				toUpdateKeys = new ArrayList<>(1);
 				toUpdateKeys.add(key.getResourceKey());
-			}
+			}// 使用NamingProxy获取数据
 			byte[] queriedData = NamingProxy.getData(toUpdateKeys, key.getTargetServer());
 			return new DistroData(key, queriedData);
 		} catch (Exception e) {

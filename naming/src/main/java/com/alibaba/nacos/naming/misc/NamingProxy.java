@@ -116,6 +116,7 @@ public class NamingProxy {
         
         Map<String, String> params = new HashMap<>(8);
         params.put("keys", StringUtils.join(keys, ","));
+    	// 组装http请求参数
         RestResult<String> result = HttpClient.httpGetLarge(
                 HTTP_PREFIX + server + EnvUtil.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + DATA_GET_URL,
                 new HashMap<>(8), JacksonUtils.toJson(params));

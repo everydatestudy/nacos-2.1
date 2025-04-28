@@ -34,6 +34,11 @@ import org.springframework.stereotype.Component;
  *
  * @author xiweng.yy
  */
+/**
+ * Distro data request handler.
+ * Distro协议数据的请求处理器，用于处理客户端发送来的Distro协议 rpc 请求
+ * @author xiweng.yy
+ */
 @Component
 public class DistroDataRequestHandler extends RequestHandler<DistroDataRequest, DistroDataResponse> {
     

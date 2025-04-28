@@ -167,6 +167,12 @@ public class DistroProtocol {
 	 * @param distroKey data key
 	 * @return data
 	 */
+	/**
+	 * Query data from specified server. 从指定的节点获取DistroData
+	 * 
+	 * @param distroKey data key
+	 * @return data
+	 */
 	public DistroData queryFromRemote(DistroKey distroKey) {
 		if (null == distroKey.getTargetServer()) {
 			Loggers.DISTRO.warn("[DISTRO] Can't query data from empty server");
@@ -177,7 +183,7 @@ public class DistroProtocol {
 		if (null == transportAgent) {
 			Loggers.DISTRO.warn("[DISTRO] Can't find transport agent for key {}", resourceType);
 			return null;
-		}
+		}// 使用DistroTransportAgent获取数据
 		return transportAgent.getData(distroKey, distroKey.getTargetServer());
 	}
 
@@ -214,6 +220,7 @@ public class DistroProtocol {
 			Loggers.DISTRO.debug("[DISTRO] Receive verify data type: {}, key: {}", distroData.getType(),
 					distroData.getDistroKey());
 		}
+		// 根据此次处理的数据类型获取对应的处理器，此处我们处理的类型是Client类型（Nacos:Naming:v2:ClientData）
 		String resourceType = distroData.getDistroKey().getResourceType();
 		DistroDataProcessor dataProcessor = distroComponentHolder.findDataProcessor(resourceType);
 		if (null == dataProcessor) {

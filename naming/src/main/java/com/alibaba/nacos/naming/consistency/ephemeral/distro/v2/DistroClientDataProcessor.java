@@ -181,27 +181,41 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
 	}
 
 	private void upgradeClient(Client client, ClientSyncData clientSyncData) {
+		// 当前处理的远端节点中的数据集合
+		// 获取所有的namespace
 		List<String> namespaces = clientSyncData.getNamespaces();
+		// 获取所有的groupNames
 		List<String> groupNames = clientSyncData.getGroupNames();
+		// 获取所有的serviceNames
 		List<String> serviceNames = clientSyncData.getServiceNames();
+		// 获取所有的instance
 		List<InstancePublishInfo> instances = clientSyncData.getInstancePublishInfos();
+		// 已同步的服务集合
 		Set<Service> syncedService = new HashSet<>();
+
+		// ①
 		for (int i = 0; i < namespaces.size(); i++) {
+			// 从获取的数据中构建一个Service对象
 			Service service = Service.newService(namespaces.get(i), groupNames.get(i), serviceNames.get(i));
 			Service singleton = ServiceManager.getInstance().getSingleton(service);
+			// 标记此service已被处理
 			syncedService.add(singleton);
+			// 获取当前的实例
 			InstancePublishInfo instancePublishInfo = instances.get(i);
+			// 判断是否已经包含当前实例
 			if (!instancePublishInfo.equals(client.getInstancePublishInfo(singleton))) {
+				// 不包含则添加
 				client.addServiceInstance(singleton, instancePublishInfo);
-				// key: 发布注册事件
+				// 当前节点发布服务注册事件
 				NotifyCenter.publishEvent(
 						new ClientOperationEvent.ClientRegisterServiceEvent(singleton, client.getClientId()));
 			}
 		}
+		// 若当前client内部已发布的service不在本次同步的列表内，说明已经过时了，要删掉
 		for (Service each : client.getAllPublishedService()) {
 			if (!syncedService.contains(each)) {
 				client.removeServiceInstance(each);
-				// key: 发布注销事件
+				// 发布客户端下线事件
 				NotifyCenter.publishEvent(
 						new ClientOperationEvent.ClientDeregisterServiceEvent(each, client.getClientId()));
 			}
@@ -221,13 +235,16 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
 
 	@Override
 	public boolean processSnapshot(DistroData distroData) {
+		// 反序列化获取的DistroData为ClientSyncDatumSnapshot
 		ClientSyncDatumSnapshot snapshot = ApplicationUtils.getBean(Serializer.class)
 				.deserialize(distroData.getContent(), ClientSyncDatumSnapshot.class);
+		// 处理结果集，这里将返回远程节点负责的所有client以及client下面的service、instance信息
 		for (ClientSyncData each : snapshot.getClientSyncDataList()) {
 			handlerClientSyncData(each);
 		}
 		return true;
 	}
+
 	// 从Client管理器中获取指定Client
 	@Override
 	public DistroData getDistroData(DistroKey distroKey) {
@@ -256,14 +273,17 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
 		return new DistroData(new DistroKey(DataOperation.SNAPSHOT.name(), TYPE), data);
 	}
 
+//在当前节点执行Nacos:Naming:v2:ClientData类型数据的验证任务时，它只会向集群中的其他节点发送自己负责的，且未被移除的数据。
 	@Override
 	public List<DistroData> getVerifyData() {
 		List<DistroData> result = new LinkedList<>();
+		// 遍历当前节点缓存的所有client
 		for (String each : clientManager.allClientId()) {
 			Client client = clientManager.getClient(each);
 			if (null == client || !client.isEphemeral()) {
 				continue;
 			}
+			// 是本机负责的Client才进行处理
 			if (clientManager.isResponsibleClient(client)) {
 				// TODO add revision for client.
 				DistroClientVerifyInfo verifyData = new DistroClientVerifyInfo(client.getClientId(), 0);
