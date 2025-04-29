@@ -28,6 +28,7 @@ import com.alibaba.nacos.core.distributed.distro.task.delay.DistroDelayTask;
  *
  * @author xiweng.yy
  */
+//是对失败的一些任务延迟在进行重试。
 public class DistroClientTaskFailedHandler implements DistroFailedTaskHandler {
     
     private final DistroTaskEngineHolder distroTaskEngineHolder;

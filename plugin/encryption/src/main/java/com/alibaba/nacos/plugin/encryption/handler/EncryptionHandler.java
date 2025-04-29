@@ -32,80 +32,87 @@ import java.util.stream.Stream;
  * @author lixiaoshuang
  */
 public class EncryptionHandler {
-    
-    private static final Logger LOGGER = LoggerFactory.getLogger(EncryptionHandler.class);
-    
-    /**
-     * For example：cipher-AES-dataId.
-     */
-    private static final String PREFIX = "cipher-";
-    
-    /**
-     * Execute encryption.
-     *
-     * @param dataId  dataId
-     * @param content Content that needs to be encrypted.
-     * @return Return key and ciphertext.
-     */
-    public static Pair<String, String> encryptHandler(String dataId, String content) {
-        if (!checkCipher(dataId)) {
-            return Pair.with("", content);
-        }
-        String algorithmName = parseAlgorithmName(dataId);
-        Optional<EncryptionPluginService> optional = EncryptionPluginManager.instance()
-                .findEncryptionService(algorithmName);
-        if (!optional.isPresent()) {
-            LOGGER.warn("[EncryptionHandler] [encryptHandler] No encryption program with the corresponding name found");
-            return Pair.with("", content);
-        }
-        EncryptionPluginService encryptionPluginService = optional.get();
-        String secretKey = encryptionPluginService.generateSecretKey();
-        String encryptContent = encryptionPluginService.encrypt(secretKey, content);
-        return Pair.with(encryptionPluginService.encryptSecretKey(secretKey), encryptContent);
-    }
-    
-    /**
-     * Execute decryption.
-     *
-     * @param dataId    dataId
-     * @param secretKey Decryption key.
-     * @param content   Content that needs to be decrypted.
-     * @return Return key and plaintext.
-     */
-    public static Pair<String, String> decryptHandler(String dataId, String secretKey, String content) {
-        if (!checkCipher(dataId)) {
-            return Pair.with("", content);
-        }
-        String algorithmName = parseAlgorithmName(dataId);
-        Optional<EncryptionPluginService> optional = EncryptionPluginManager.instance()
-                .findEncryptionService(algorithmName);
-        if (!optional.isPresent()) {
-            LOGGER.warn("[EncryptionHandler] [decryptHandler] No encryption program with the corresponding name found");
-            return Pair.with("", content);
-        }
-        EncryptionPluginService encryptionPluginService = optional.get();
-        String decryptSecretKey = encryptionPluginService.decryptSecretKey(secretKey);
-        String decryptContent = encryptionPluginService.decrypt(decryptSecretKey, content);
-        return Pair.with(decryptSecretKey, decryptContent);
-    }
-    
-    /**
-     * Parse encryption algorithm name.
-     *
-     * @param dataId dataId
-     * @return algorithm name
-     */
-    private static String parseAlgorithmName(String dataId) {
-        return Stream.of(dataId.split("-")).collect(Collectors.toList()).get(1);
-    }
-    
-    /**
-     * Check if encryption and decryption is needed.
-     *
-     * @param dataId dataId
-     * @return boolean
-     */
-    private static boolean checkCipher(String dataId) {
-        return dataId.startsWith(PREFIX);
-    }
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(EncryptionHandler.class);
+
+	/**
+	 * For example：cipher-AES-dataId.
+	 */
+	private static final String PREFIX = "cipher-";
+
+	/**
+	 * Execute encryption.
+	 *
+	 * @param dataId  dataId
+	 * @param content Content that needs to be encrypted.
+	 * @return Return key and ciphertext.
+	 */
+	// 判断是否需要处理加密
+	// 需要的话，去插件里面获取
+	// 获取不到打日志，返回非加密处理（相当于兜底，没有就默认不加密处理了）
+	// 获取到加密插件，利用插件获取秘钥，然后再加密
+	public static Pair<String, String> encryptHandler(String dataId, String content) {
+		// 检查是否需要加密
+		if (!checkCipher(dataId)) {
+			return Pair.with("", content);
+		}
+		String algorithmName = parseAlgorithmName(dataId);
+		// 获取加密的处理类
+		Optional<EncryptionPluginService> optional = EncryptionPluginManager.instance()
+				.findEncryptionService(algorithmName);
+		if (!optional.isPresent()) {
+			LOGGER.warn("[EncryptionHandler] [encryptHandler] No encryption program with the corresponding name found");
+			return Pair.with("", content);
+		}
+		EncryptionPluginService encryptionPluginService = optional.get();
+		// 根据扩展的插件类，获取密钥
+		String secretKey = encryptionPluginService.generateSecretKey();
+		String encryptContent = encryptionPluginService.encrypt(secretKey, content);
+		return Pair.with(encryptionPluginService.encryptSecretKey(secretKey), encryptContent);
+	}
+
+	/**
+	 * Execute decryption.
+	 *
+	 * @param dataId    dataId
+	 * @param secretKey Decryption key.
+	 * @param content   Content that needs to be decrypted.
+	 * @return Return key and plaintext.
+	 */
+	public static Pair<String, String> decryptHandler(String dataId, String secretKey, String content) {
+		if (!checkCipher(dataId)) {
+			return Pair.with("", content);
+		}
+		String algorithmName = parseAlgorithmName(dataId);
+		Optional<EncryptionPluginService> optional = EncryptionPluginManager.instance()
+				.findEncryptionService(algorithmName);
+		if (!optional.isPresent()) {
+			LOGGER.warn("[EncryptionHandler] [decryptHandler] No encryption program with the corresponding name found");
+			return Pair.with("", content);
+		}
+		EncryptionPluginService encryptionPluginService = optional.get();
+		String decryptSecretKey = encryptionPluginService.decryptSecretKey(secretKey);
+		String decryptContent = encryptionPluginService.decrypt(decryptSecretKey, content);
+		return Pair.with(decryptSecretKey, decryptContent);
+	}
+
+	/**
+	 * Parse encryption algorithm name.
+	 *
+	 * @param dataId dataId
+	 * @return algorithm name
+	 */
+	private static String parseAlgorithmName(String dataId) {
+		return Stream.of(dataId.split("-")).collect(Collectors.toList()).get(1);
+	}
+
+	/**
+	 * Check if encryption and decryption is needed.
+	 *
+	 * @param dataId dataId
+	 * @return boolean
+	 */
+	private static boolean checkCipher(String dataId) {
+		return dataId.startsWith(PREFIX);
+	}
 }

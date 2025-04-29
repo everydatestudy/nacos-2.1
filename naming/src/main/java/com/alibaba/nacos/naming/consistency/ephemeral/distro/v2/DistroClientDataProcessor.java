@@ -99,6 +99,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
 		if (!upgradeJudgement.isUseGrpcFeatures()) {
 			return;
 		}
+		// 同步到验证失败的服务节点上
 		if (event instanceof ClientEvent.ClientVerifyFailedEvent) {
 			syncToVerifyFailedServer((ClientEvent.ClientVerifyFailedEvent) event);
 		} else {
@@ -114,6 +115,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
 		}
 		DistroKey distroKey = new DistroKey(client.getClientId(), TYPE);
 		// Verify failed data should be sync directly.
+		// 验证是否应直接同步失败的数据，依然是被包装，再通过rpc请求到对应的服务节点
 		distroProtocol.syncToTarget(distroKey, DataOperation.ADD, event.getTargetServer(), 0L);
 	}
 
@@ -224,6 +226,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
 
 	@Override
 	public boolean processVerifyData(DistroData distroData, String sourceAddress) {
+		  // 对数据进行反序列化为DistroClientVerifyInfo对象
 		DistroClientVerifyInfo verifyData = ApplicationUtils.getBean(Serializer.class)
 				.deserialize(distroData.getContent(), DistroClientVerifyInfo.class);
 		if (clientManager.verifyClient(verifyData.getClientId())) {
@@ -273,19 +276,23 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
 		return new DistroData(new DistroKey(DataOperation.SNAPSHOT.name(), TYPE), data);
 	}
 
-//在当前节点执行Nacos:Naming:v2:ClientData类型数据的验证任务时，它只会向集群中的其他节点发送自己负责的，且未被移除的数据。
+	// 在当前节点执行Nacos:Naming:v2:ClientData类型数据的验证任务时，
+	// 它只会向集群中的其他节点发送自己负责的，且未被移除的数据。
 	@Override
 	public List<DistroData> getVerifyData() {
 		List<DistroData> result = new LinkedList<>();
 		// 遍历当前节点缓存的所有client
 		for (String each : clientManager.allClientId()) {
+			// 对每个本机所管理的注册客户端进行处理
 			Client client = clientManager.getClient(each);
 			if (null == client || !client.isEphemeral()) {
+				// 空的或者是非临时性的节点，不处理
 				continue;
 			}
 			// 是本机负责的Client才进行处理
 			if (clientManager.isResponsibleClient(client)) {
 				// TODO add revision for client.
+				// 需要验证的数据就是每个节点的clientId和revision
 				DistroClientVerifyInfo verifyData = new DistroClientVerifyInfo(client.getClientId(), 0);
 				DistroKey distroKey = new DistroKey(client.getClientId(), TYPE);
 				DistroData data = new DistroData(distroKey,

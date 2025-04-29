@@ -108,6 +108,7 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
 			return true;
 		}
 		// replace target server as self server so that can callback.
+		 // 将目标服务器替换为自身服务器，以便可以进行回调。
 		verifyData.getDistroKey().setTargetServer(memberManager.getSelf().getAddress());
 		// 构建请求对象
 		DistroDataRequest request = new DistroDataRequest(verifyData, DataOperation.VERIFY);

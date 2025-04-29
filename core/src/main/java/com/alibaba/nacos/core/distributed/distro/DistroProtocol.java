@@ -84,6 +84,7 @@ public class DistroProtocol {
 	 * 从其他节点获取数据到当前节点
 	 */
 	private void startLoadTask() {
+		// 回调函数，如果导入数据成功，说明已经初始化，否则为false
 		DistroCallback loadCallback = new DistroCallback() {
 			@Override
 			public void onSuccess() {
@@ -100,6 +101,7 @@ public class DistroProtocol {
 				new DistroLoadDataTask(memberManager, distroComponentHolder, DistroConfig.getInstance(), loadCallback));
 	}
 
+	// 固定每次间隔5s执行验证处理
 	private void startVerifyTask() {
 		GlobalExecutor.schedulePartitionDataTimedSync(
 				new DistroVerifyTimedTask(memberManager, distroComponentHolder,
@@ -146,6 +148,7 @@ public class DistroProtocol {
 	 * @param targetServer target server
 	 * @param delay        delay time for sync
 	 */
+	// 同步到目标服务器
 	public void syncToTarget(DistroKey distroKey, DataOperation action, String targetServer, long delay) {
 		DistroKey distroKeyWithTarget = new DistroKey(distroKey.getResourceKey(), distroKey.getResourceType(),
 				targetServer);
@@ -183,7 +186,7 @@ public class DistroProtocol {
 		if (null == transportAgent) {
 			Loggers.DISTRO.warn("[DISTRO] Can't find transport agent for key {}", resourceType);
 			return null;
-		}// 使用DistroTransportAgent获取数据
+		} // 使用DistroTransportAgent获取数据
 		return transportAgent.getData(distroKey, distroKey.getTargetServer());
 	}
 

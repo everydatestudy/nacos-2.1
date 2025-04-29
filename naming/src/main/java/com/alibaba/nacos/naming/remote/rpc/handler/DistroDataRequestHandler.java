@@ -35,74 +35,76 @@ import org.springframework.stereotype.Component;
  * @author xiweng.yy
  */
 /**
- * Distro data request handler.
- * Distro协议数据的请求处理器，用于处理客户端发送来的Distro协议 rpc 请求
+ * Distro data request handler. Distro协议数据的请求处理器，用于处理客户端发送来的Distro协议 rpc 请求
+ * 
  * @author xiweng.yy
  */
 @Component
 public class DistroDataRequestHandler extends RequestHandler<DistroDataRequest, DistroDataResponse> {
-    
-    private final DistroProtocol distroProtocol;
-    
-    public DistroDataRequestHandler(DistroProtocol distroProtocol) {
-        this.distroProtocol = distroProtocol;
-    }
-    
-    @Override
-    public DistroDataResponse handle(DistroDataRequest request, RequestMeta meta) throws NacosException {
-        try {
-            switch (request.getDataOperation()) {
-                case VERIFY:
-                    return handleVerify(request.getDistroData(), meta);
-                case SNAPSHOT:
-                    return handleSnapshot();
-                case ADD:
-                case CHANGE:
-                case DELETE:
-                    return handleSyncData(request.getDistroData());
-                case QUERY:
-                    return handleQueryData(request.getDistroData());
-                default:
-                    return new DistroDataResponse();
-            }
-        } catch (Exception e) {
-            Loggers.DISTRO.error("[DISTRO-FAILED] distro handle with exception", e);
-            DistroDataResponse result = new DistroDataResponse();
-            result.setErrorCode(ResponseCode.FAIL.getCode());
-            result.setMessage("handle distro request with exception");
-            return result;
-        }
-    }
-    
-    private DistroDataResponse handleVerify(DistroData distroData, RequestMeta meta) {
-        DistroDataResponse result = new DistroDataResponse();
-        if (!distroProtocol.onVerify(distroData, meta.getClientIp())) {
-            result.setErrorInfo(ResponseCode.FAIL.getCode(), "[DISTRO-FAILED] distro data verify failed");
-        }
-        return result;
-    }
-    
-    private DistroDataResponse handleSnapshot() {
-        DistroDataResponse result = new DistroDataResponse();
-        DistroData distroData = distroProtocol.onSnapshot(DistroClientDataProcessor.TYPE);
-        result.setDistroData(distroData);
-        return result;
-    }
-    
-    private DistroDataResponse handleSyncData(DistroData distroData) {
-        DistroDataResponse result = new DistroDataResponse();
-        if (!distroProtocol.onReceive(distroData)) {
-            result.setErrorCode(ResponseCode.FAIL.getCode());
-            result.setMessage("[DISTRO-FAILED] distro data handle failed");
-        }
-        return result;
-    }
-    
-    private DistroDataResponse handleQueryData(DistroData distroData) {
-        DistroDataResponse result = new DistroDataResponse();
-        DistroKey distroKey = distroData.getDistroKey();
-        DistroData queryData = distroProtocol.onQuery(distroKey);
-        result.setDistroData(queryData);
-        return result;
-    }
+
+	private final DistroProtocol distroProtocol;
+
+	public DistroDataRequestHandler(DistroProtocol distroProtocol) {
+		this.distroProtocol = distroProtocol;
+	}
+
+	@Override
+	public DistroDataResponse handle(DistroDataRequest request, RequestMeta meta) throws NacosException {
+		try {
+			switch (request.getDataOperation()) {
+			case VERIFY:
+				// 处理验证请求
+				return handleVerify(request.getDistroData(), meta);
+			case SNAPSHOT:
+			    // 处理快照请求
+				return handleSnapshot();
+			case ADD:
+			case CHANGE:
+			case DELETE:
+				return handleSyncData(request.getDistroData());
+			case QUERY:
+				return handleQueryData(request.getDistroData());
+			default:
+				return new DistroDataResponse();
+			}
+		} catch (Exception e) {
+			Loggers.DISTRO.error("[DISTRO-FAILED] distro handle with exception", e);
+			DistroDataResponse result = new DistroDataResponse();
+			result.setErrorCode(ResponseCode.FAIL.getCode());
+			result.setMessage("handle distro request with exception");
+			return result;
+		}
+	}
+
+	private DistroDataResponse handleVerify(DistroData distroData, RequestMeta meta) {
+		DistroDataResponse result = new DistroDataResponse();
+		if (!distroProtocol.onVerify(distroData, meta.getClientIp())) {
+			result.setErrorInfo(ResponseCode.FAIL.getCode(), "[DISTRO-FAILED] distro data verify failed");
+		}
+		return result;
+	}
+
+	private DistroDataResponse handleSnapshot() {
+		DistroDataResponse result = new DistroDataResponse();
+		DistroData distroData = distroProtocol.onSnapshot(DistroClientDataProcessor.TYPE);
+		result.setDistroData(distroData);
+		return result;
+	}
+
+	private DistroDataResponse handleSyncData(DistroData distroData) {
+		DistroDataResponse result = new DistroDataResponse();
+		if (!distroProtocol.onReceive(distroData)) {
+			result.setErrorCode(ResponseCode.FAIL.getCode());
+			result.setMessage("[DISTRO-FAILED] distro data handle failed");
+		}
+		return result;
+	}
+
+	private DistroDataResponse handleQueryData(DistroData distroData) {
+		DistroDataResponse result = new DistroDataResponse();
+		DistroKey distroKey = distroData.getDistroKey();
+		DistroData queryData = distroProtocol.onQuery(distroKey);
+		result.setDistroData(queryData);
+		return result;
+	}
 }

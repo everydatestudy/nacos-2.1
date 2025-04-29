@@ -64,14 +64,16 @@ public class DistroVerifyTimedTask implements Runnable {
 			}
 			// 每一种类型的数据，都要向其他节点发起验证
 			for (String each : distroComponentHolder.getDataStorageTypes()) {
-				// 对dataStorage内的数据进行验证
+				// 根据类型来验证，这个类型代表着协议类型，2.2.0的版本只会用Grpc的类型
 				verifyForDataStorage(each, targetServer);
 			}
 		} catch (Exception e) {
 			Loggers.DISTRO.error("[DISTRO-FAILED] verify task failed.", e);
 		}
 	}
-
+//	在验证的处理方法中，先需要拿到非本机的其他节点，然后进行验证
+//
+//	验证的时候会首先拿到本机的数据，再对所有节点都执行验证操作
 	private void verifyForDataStorage(String type, List<Member> targetServer) {
 		// 获取数据类型
 		DistroDataStorage dataStorage = distroComponentHolder.findDataStorage(type);

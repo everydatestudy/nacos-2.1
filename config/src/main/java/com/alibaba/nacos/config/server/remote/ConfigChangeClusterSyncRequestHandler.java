@@ -45,7 +45,7 @@ public class ConfigChangeClusterSyncRequestHandler
     @Override
     public ConfigChangeClusterSyncResponse handle(ConfigChangeClusterSyncRequest configChangeSyncRequest,
             RequestMeta meta) throws NacosException {
-        
+    	  // 本机的dump服务
         if (configChangeSyncRequest.isBeta()) {
             dumpService.dump(configChangeSyncRequest.getDataId(), configChangeSyncRequest.getGroup(),
                     configChangeSyncRequest.getTenant(), configChangeSyncRequest.getLastModified(), meta.getClientIp(),

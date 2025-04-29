@@ -79,7 +79,7 @@ public class DistroLoadDataTask implements Runnable {
 
 	private void load() throws Exception {
 		// 若出自身之外没有其他节点，则休眠1秒，可能其他节点还未启动完毕
-		
+
 		while (memberManager.allMembersWithoutSelf().isEmpty()) {
 			Loggers.DISTRO.info("[DISTRO-INIT] waiting server list init...");
 			TimeUnit.SECONDS.sleep(1);
@@ -94,6 +94,7 @@ public class DistroLoadDataTask implements Runnable {
 		for (String each : distroComponentHolder.getDataStorageTypes()) {
 			if (!loadCompletedMap.containsKey(each) || !loadCompletedMap.get(each)) {
 				// 调用加载方法，并标记已处理
+				// 处理所有协议类型，这里只有V2 Grpc类型
 				loadCompletedMap.put(each, loadAllDataSnapshotFromRemote(each));
 			}
 		}

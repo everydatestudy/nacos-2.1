@@ -103,8 +103,9 @@ public class ConfigCacheService {
             return false;
         }
         
-        try {
+        try { // 计算配置信息的md5值
             final String md5 = MD5Utils.md5Hex(content, Constants.ENCODE);
+            // 如果这个事件滞后了则不处理了
             if (lastModifiedTs < ConfigCacheService.getLastModifiedTs(groupKey)) {
                 DUMP_LOG.warn("[dump-ignore] the content is old. groupKey={}, md5={}, lastModifiedOld={}, "
                                 + "lastModifiedNew={}", groupKey, md5, ConfigCacheService.getLastModifiedTs(groupKey),
@@ -118,6 +119,7 @@ public class ConfigCacheService {
             } else if (!PropertyUtil.isDirectRead()) {
                 DiskUtil.saveToDisk(dataId, group, tenant, content);
             }
+            // 更新md5值，并发布本地配置变动事件
             updateMd5(groupKey, md5, lastModifiedTs, encryptedDataKey);
             return true;
         } catch (IOException ioe) {

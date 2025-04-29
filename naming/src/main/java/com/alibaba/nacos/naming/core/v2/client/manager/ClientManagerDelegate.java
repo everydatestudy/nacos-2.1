@@ -41,7 +41,7 @@ public class ClientManagerDelegate implements ClientManager {
     private final EphemeralIpPortClientManager ephemeralIpPortClientManager;
     
     private final PersistentIpPortClientManager persistentIpPortClientManager;
-    
+    // 构造方法注入
     public ClientManagerDelegate(ConnectionBasedClientManager connectionBasedClientManager,
             EphemeralIpPortClientManager ephemeralIpPortClientManager,
             PersistentIpPortClientManager persistentIpPortClientManager) {

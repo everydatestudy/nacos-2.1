@@ -31,7 +31,8 @@ import java.util.List;
  *
  * @author xiweng.yy
  */
-//Distro数据验证任务执行器，用于向其他节点发送当前节点负责的Client状态报告，通知对方此Client正常服务。它的数据处理维度是DistroData。
+//Distro数据验证任务执行器，用于向其他节点发送当前节点负责的Client状态报告，
+//通知对方此Client正常服务。它的数据处理维度是DistroData。
 //执行Distro协议数据验证的任务，为每个DistroData发送一个异步的rpc请求
 public class DistroVerifyExecuteTask extends AbstractExecuteTask {
 	/**

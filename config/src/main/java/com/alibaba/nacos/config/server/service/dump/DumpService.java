@@ -136,6 +136,7 @@ public abstract class DumpService {
         this.dumpAllProcessor = new DumpAllProcessor(this);
         this.dumpAllBetaProcessor = new DumpAllBetaProcessor(this);
         this.dumpAllTagProcessor = new DumpAllTagProcessor(this);
+        // 创建一个TaskManager
         this.dumpTaskMgr = new TaskManager("com.alibaba.nacos.server.DumpTaskManager");
         this.dumpTaskMgr.setDefaultTaskProcessor(processor);
         

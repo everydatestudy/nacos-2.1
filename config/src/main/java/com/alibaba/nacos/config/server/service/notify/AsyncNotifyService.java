@@ -98,7 +98,6 @@ public class AsyncNotifyService {
 //        	1、获取所有的Nacos服务节点（包括当前客户端）
 //        	2、创建一个队列，将相关配置的其他服务节点都存放进来
 //        	3、通过线程池执行异步通知
-
 			@Override
 			public void onEvent(Event event) {
 				// Generate ConfigDataChangeEvent concurrently
@@ -110,7 +109,6 @@ public class AsyncNotifyService {
 					String tenant = evt.tenant;
 					String tag = evt.tag;
 					Collection<Member> ipList = memberManager.allMembers();
-
 					// In fact, any type of queue here can be
 					Queue<NotifySingleTask> httpQueue = new LinkedList<NotifySingleTask>();
 					Queue<NotifySingleRpcTask> rpcQueue = new LinkedList<NotifySingleRpcTask>();
@@ -189,6 +187,7 @@ public class AsyncNotifyService {
 		}
 	}
 
+	// 获取到服务列表后，通过线程池调用异步任务AsyncRpcTask。
 	class AsyncRpcTask implements Runnable {
 
 		private Queue<NotifySingleRpcTask> queue;
@@ -201,7 +200,7 @@ public class AsyncNotifyService {
 		public void run() {
 			while (!queue.isEmpty()) {
 				NotifySingleRpcTask task = queue.poll();
-				 // 构造配置变动集群同步请求
+				// 构造配置变动集群同步请求
 				ConfigChangeClusterSyncRequest syncRequest = new ConfigChangeClusterSyncRequest();
 				syncRequest.setDataId(task.getDataId());
 				syncRequest.setGroup(task.getGroup());
@@ -210,6 +209,7 @@ public class AsyncNotifyService {
 				syncRequest.setTag(task.tag);
 				syncRequest.setTenant(task.getTenant());
 				Member member = task.member;
+			    // 如果是当前节点，直接调用dumpService执行dump操作
 				if (memberManager.getSelf().equals(member)) {
 					if (syncRequest.isBeta()) {
 						dumpService.dump(syncRequest.getDataId(), syncRequest.getGroup(), syncRequest.getTenant(),
@@ -224,7 +224,7 @@ public class AsyncNotifyService {
 				if (memberManager.hasMember(member.getAddress())) {
 					// start the health check and there are ips that are not monitored, put them
 					// directly in the notification queue, otherwise notify
-					  // 启动健康检查，有IP未被监控，直接放入通知队列，否则通知
+					// 启动健康检查，有IP未被监控，直接放入通知队列，否则通知
 					boolean unHealthNeedDelay = memberManager.isUnHealth(member.getAddress());
 					if (unHealthNeedDelay) {
 						// target ip is unhealthy, then put it in the notification list
@@ -232,8 +232,8 @@ public class AsyncNotifyService {
 								task.getLastModified(), InetUtils.getSelfIP(), ConfigTraceService.NOTIFY_EVENT_UNHEALTH,
 								0, member.getAddress());
 						// get delay time and set fail count to the task
-						 // 异步任务执行
-	                    // 可延迟的处理，因为是不健康的节点，不知道什么时候能恢复
+						// 异步任务执行
+						// 可延迟的处理，因为是不健康的节点，不知道什么时候能恢复
 						asyncTaskExecute(task);
 					} else {
 
